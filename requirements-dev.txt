@@ -5,3 +5,4 @@ pyyaml==6.0.3
 ruff==0.16.10
 sqlfluff==4.4.0
 trino==0.340.0
+pyspark==4.1.3

@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from streaming.lib.session import catalog_conf
+from streaming.lib.session import (
+    catalog_conf,
+    checkpoint_path,
+    lake_bucket,
+    s3a_conf,
+    session_id_from_cluster_id,
+)
 
 REST_ENV = {
     "CATALOG_TYPE": "rest",
@@ -52,3 +58,36 @@ def test_rest_requires_its_settings(missing):
     env = {k: v for k, v in REST_ENV.items() if k != missing}
     with pytest.raises(ValueError, match=missing):
         catalog_conf(env)
+
+
+def test_session_id_is_path_safe_and_stable():
+    cluster = "redpanda.2cb8c8d7-ace8-43d8-99ce-48f39658ae74"
+    assert session_id_from_cluster_id(cluster) == "redpanda-2cb8c8d7-ace8-43d8-99ce-48f39658ae74"
+    assert session_id_from_cluster_id(cluster) == session_id_from_cluster_id(cluster)
+
+
+def test_empty_cluster_id_is_rejected():
+    with pytest.raises(ValueError):
+        session_id_from_cluster_id("...")
+
+
+def test_checkpoints_are_per_session_and_per_query():
+    a = checkpoint_path("warehouse", "redpanda-1", "silver_edits")
+    b = checkpoint_path("warehouse", "redpanda-2", "silver_edits")
+    assert a == "s3a://warehouse/_checkpoints/redpanda-1/silver_edits"
+    assert a != b
+
+
+def test_lake_bucket_comes_from_warehouse():
+    assert lake_bucket({"WAREHOUSE": "s3://warehouse/"}) == "warehouse"
+    with pytest.raises(ValueError):
+        lake_bucket({"WAREHOUSE": "/local/path"})
+
+
+def test_s3a_points_at_local_s3_only_when_an_endpoint_is_set():
+    local = s3a_conf({"S3_ENDPOINT": "http://seaweedfs:8333"})
+    assert local["spark.hadoop.fs.s3a.endpoint"] == "http://seaweedfs:8333"
+    assert local["spark.hadoop.fs.s3a.connection.ssl.enabled"] == "false"
+    cloud = s3a_conf({})
+    assert "spark.hadoop.fs.s3a.endpoint" not in cloud
+    assert not any("secret" in k or "access.key" in k for k in {**local, **cloud})
