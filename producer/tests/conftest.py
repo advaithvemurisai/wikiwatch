@@ -36,6 +36,7 @@ def as_data(event: dict) -> str:
 class FakePublisher:
     def __init__(self, fail: bool = False) -> None:
         self.sent: list[tuple[str, str | None, str]] = []
+        self.acked: list[tuple[str, str | None, str]] = []  # survives a crash
         self.pending = 0
         self.delivered: Counter[str] = Counter()
         self.failed = 0
@@ -51,11 +52,12 @@ class FakePublisher:
 
     def flush(self, timeout):
         self.flushes += 1
-        for topic, _, _ in self.sent[len(self.sent) - self.pending :]:
+        for message in self.sent[len(self.sent) - self.pending :]:
             if self.fail:
                 self.failed += 1
             else:
-                self.delivered[topic] += 1
+                self.delivered[message[0]] += 1
+                self.acked.append(message)
         self.pending = 0
         return 0
 

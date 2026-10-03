@@ -172,25 +172,78 @@ def test_errors_back_off_and_successful_connection_resets(parts):
     assert all(s >= 0 for s in sleeps)
 
 
-def test_kill_and_resume_loses_nothing(validator):
-    """Simulated crash: events after the last checkpoint are re-read, never skipped."""
-    store, clock_value = FakeStore(), [0.0]
-    upstream = [f"pos-{i}" for i in range(10)]
+def test_flapping_connection_never_reconnects_in_a_tight_loop(parts):
+    """A connection that delivers events and then breaks still pauses before retrying."""
+    pipeline, *_ = parts
+    sleeps, logs = [], []
 
-    def run_until(stop_after: int, start: str | None) -> list[str]:
+    def stream(last_event_id):
+        yield sse(make_event(), "pos-1")
+        raise httpx.ReadError("connection reset")
+
+    run_connections(stream, pipeline, sleep=sleeps.append, log=logs.append, max_connections=3)
+    assert len(sleeps) == 3  # one pause per broken connection
+    assert all(0 < s <= 1.0 for s in sleeps)
+    assert {r["reason"] for r in logs} == {"ReadError"}
+
+
+def test_http_errors_are_logged_with_status_code(parts):
+    pipeline, *_ = parts
+    logs = []
+    request = httpx.Request("GET", "https://stream.example/")
+    response = httpx.Response(429, request=request)
+
+    def stream(last_event_id):
+        raise httpx.HTTPStatusError("too many", request=request, response=response)
+        yield  # pragma: no cover - makes this a generator
+
+    run_connections(stream, pipeline, sleep=lambda s: None, log=logs.append, max_connections=1)
+    assert logs[0]["reason"] == "HTTP 429"
+
+
+def simulate_crash_and_resume(validator, first_run_cls=Pipeline) -> tuple[set[str], set[str]]:
+    """Run until a crash, then resume; return (upstream IDs, IDs acknowledged by Redpanda).
+
+    The fake publisher acknowledges messages only on flush, like a real client whose
+    buffer dies with the process: in a crash, unflushed messages are lost and no final
+    checkpoint runs. ``first_run_cls`` lets a test swap in a buggy pipeline for the run
+    that crashes.
+    """
+    store, clock_value = FakeStore(), [0.0]
+    upstream = [f"pos-{i}" for i in range(20)]
+
+    def run(pipeline_cls, start: str | None, crash_after: int | None) -> list[str]:
         publisher = FakePublisher()
-        pipeline = Pipeline(validator, publisher, store, clock=lambda: clock_value[0])
+        pipeline = pipeline_cls(validator, publisher, store, clock=lambda: clock_value[0])
         pipeline.start_from(start)
         begin = 0 if start is None else upstream.index(start) + 1
         for i, event_id in enumerate(upstream[begin:]):
-            if i == stop_after:
-                break  # crash: no final checkpoint
-            clock_value[0] += 10  # 10 s per event, checkpoint every 30 s
+            if i == crash_after:
+                break
+            clock_value[0] += 7  # checkpoints (every 30 s) land between events
             pipeline.handle(sse(make_event(meta={"id": event_id, "dt": "x"}), event_id))
-        publisher.flush(1)
-        return [json.loads(v)["meta"]["id"] for t, _, v in publisher.sent if t == "wiki_edits"]
+        if crash_after is None:
+            pipeline.checkpoint()  # clean shutdown
+        return [json.loads(v)["meta"]["id"] for t, _, v in publisher.acked if t == "wiki_edits"]
 
-    first = run_until(stop_after=5, start=None)
-    second = run_until(stop_after=100, start=start_position("resume", store))
-    assert set(first) | set(second) == set(upstream)
-    assert len(first) + len(second) >= len(upstream)  # overlap allowed, gaps never
+    first = run(first_run_cls, start=None, crash_after=11)
+    second = run(Pipeline, start=start_position("resume", store), crash_after=None)
+    return set(upstream), set(first) | set(second)
+
+
+def test_kill_and_resume_loses_nothing(validator):
+    upstream, reached = simulate_crash_and_resume(validator)
+    assert reached == upstream
+
+
+def test_kill_test_detects_saving_without_flushing(validator):
+    """Mutation check: the test above must fail for the classic at-least-once bug."""
+
+    class SavesWithoutFlushing(Pipeline):
+        def checkpoint(self):
+            if self.last_event_id and self.last_event_id != self.saved_event_id:
+                self.store.save(self.last_event_id)
+                self.saved_event_id = self.last_event_id
+
+    upstream, reached = simulate_crash_and_resume(validator, SavesWithoutFlushing)
+    assert reached != upstream  # events before the early-saved position are lost

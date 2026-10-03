@@ -58,10 +58,19 @@ def run_connections(
             for event in stream(pipeline.last_event_id):
                 delivered = True
                 pipeline.handle(event)
+        except httpx.HTTPStatusError as exc:
+            reason = f"HTTP {exc.response.status_code}"
         except httpx.HTTPError as exc:
             reason = type(exc).__name__
         failures = 0 if delivered else failures + 1
-        delay = backoff_delay(failures) if failures else 0.0
+        if failures:
+            delay = backoff_delay(failures)
+        elif reason != "closed_by_server":
+            # Events arrived, then the connection broke: pause briefly anyway so a
+            # flapping connection can never turn into a tight reconnect loop.
+            delay = backoff_delay(0)
+        else:
+            delay = 0.0
         pipeline.counters.reconnects += 1
         log({"msg": "reconnect", "reason": reason, "delay_s": round(delay, 2)})
         pipeline.tick()
