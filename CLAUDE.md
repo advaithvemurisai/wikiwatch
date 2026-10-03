@@ -32,7 +32,28 @@ Pin exact versions in Task 1 and record them here:
 
 | Component | Version |
 | --- | --- |
-| (fill in Task 1) | |
+| Python (host and Spark image) | 3.13 |
+| Redpanda / Redpanda Console | v26.2.3 / v3.12.0 |
+| SeaweedFS | 4.48 |
+| Iceberg REST catalog (`apache/iceberg-rest-fixture`) | 1.10.1 |
+| Spark (`apache/spark`, Scala 2.13, Java 17) | 4.1.3 |
+| Iceberg Spark runtime / AWS bundle | 1.12.0 / 1.12.0 |
+| Trino | 483 |
+| Airflow | 3.3.2 (python3.13 image) |
+| Postgres (Airflow metadata) | 18.6 |
+| Terraform | 1.16.4 |
+| gitleaks / pre-commit / ruff / sqlfluff / pytest | 8.30.1 / 4.6.2 / 0.16.10 / 4.4.0 / 9.1.1 |
+| Node (Task 8) | 24 LTS |
+
+Measured peak memory per profile (2026-10-03, M1 Air 8 GB, Docker VM 6 GB, `docker stats`
+sampled every second; macOS swap stayed flat at about 4.6 GB and memory pressure stayed
+normal, 35 to 42% free):
+
+| Profile | Limits (sum) | Measured peak | Measured during |
+| --- | --- | --- | --- |
+| core | 4.4 GB | about 1.0 GB | `make smoke` (Spark job running) |
+| dbt (Trino) | 2.0 GB | about 0.9 GB | `make smoke` (Trino query) |
+| airflow (Airflow + Postgres) | 2.0 GB | about 1.1 GB | idle, no DAGs yet |
 
 ## Environment
 
@@ -102,6 +123,7 @@ Pin exact versions in Task 1 and record them here:
 
 | Command | Purpose |
 | --- | --- |
+| `make venv` / `make env-local` | One-time setup: Python 3.13 dev tools, `.env.local` with random local secrets |
 | `make up` / `make down` | Start or stop the `core` profile |
 | `make up-airflow` | `core` plus Airflow |
 | `make up-dbt` | `core` plus Trino for dbt work |
@@ -110,6 +132,7 @@ Pin exact versions in Task 1 and record them here:
 | `make lint` | ruff, sqlfluff, terraform fmt, tflint |
 | `make secrets-check` | gitleaks on the working tree and history |
 | `make web` | Run the Next.js app locally on fixture snapshots |
+| `make smoke` | Spark writes an Iceberg table, Trino reads it (needs `make up-dbt`) |
 
 ## Verified facts (fill in from the first live session)
 
