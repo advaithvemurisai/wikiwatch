@@ -1,0 +1,5 @@
+# Producer runtime dependencies (Python 3.13). Pinned; update deliberately.
+boto3==1.43.108
+confluent-kafka==2.15.1
+httpx==0.28.1
+jsonschema==4.26.0

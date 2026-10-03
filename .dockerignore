@@ -1,0 +1,7 @@
+# Allowlist: only what the images need. Keeps .env.local and other local files out.
+*
+!producer/requirements.txt
+!producer/pyproject.toml
+!producer/src
+!schemas/wiki_edits.json
+**/__pycache__

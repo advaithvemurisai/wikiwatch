@@ -146,6 +146,32 @@ services:
       iceberg-rest:
         condition: service_healthy
 
+  # ---------------------------------------------------------------- producer
+  producer:
+    build:
+      context: .
+      dockerfile: docker/producer/Dockerfile
+    image: wikiwatch/producer:0.1.0
+    profiles: [producer]
+    mem_limit: ${PRODUCER_MEM_LIMIT:-192m}
+    # Started only by `make produce MODE=fresh|resume`. Never auto-restarted: a restart
+    # with the wrong mode could skip events, so a crash stays visible and is resumed by hand.
+    restart: "no"
+    command: ["${PRODUCER_MODE:-resume}"]
+    environment:
+      <<: *s3-client-env
+      KAFKA_BOOTSTRAP: redpanda:9092
+      SCHEMA_REGISTRY_URL: http://redpanda:8081
+      WIKIWATCH_USER_AGENT: ${WIKIWATCH_USER_AGENT:-}
+      STATE_BUCKET: ${WAREHOUSE_BUCKET:-warehouse}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+    stop_grace_period: 45s
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+
   # ---------------------------------------------------------------- dbt
   trino:
     image: trinodb/trino:483

@@ -1,3 +1,4 @@
+-r producer/requirements.txt
 # Host-side dev tools (Python 3.13). Pinned; update deliberately.
 pytest==9.1.1
 pyyaml==6.0.3

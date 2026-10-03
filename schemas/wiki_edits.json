@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wikiwatch.example/schemas/wiki_edits.json",
+  "title": "wiki_edits",
+  "description": "Contract for events published to the wiki_edits topic: a Wikimedia mediawiki/recentchange event with the fields WikiWatch depends on made required. Extra fields are allowed so upstream additions never break validation. Changes must stay BACKWARD compatible.",
+  "type": "object",
+  "required": ["meta", "type", "namespace", "title", "wiki"],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["id", "dt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "dt": { "type": "string", "format": "date-time" },
+        "domain": { "type": "string" },
+        "stream": { "type": "string" }
+      }
+    },
+    "type": { "enum": ["edit", "new", "log", "categorize", "external"] },
+    "namespace": { "type": "integer" },
+    "title": { "type": "string", "minLength": 1 },
+    "wiki": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "timestamp": { "type": "integer" },
+    "user": { "type": "string" },
+    "bot": { "type": "boolean" },
+    "length": {
+      "type": "object",
+      "properties": {
+        "old": { "type": ["integer", "null"] },
+        "new": { "type": ["integer", "null"] }
+      }
+    },
+    "revision": {
+      "type": "object",
+      "properties": {
+        "old": { "type": ["integer", "null"] },
+        "new": { "type": ["integer", "null"] }
+      }
+    },
+    "log_type": { "type": ["string", "null"] },
+    "log_action": { "type": ["string", "null"] }
+  },
+  "additionalProperties": true
+}

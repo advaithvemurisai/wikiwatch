@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wikiwatch-producer"
+version = "0.1.0"
+description = "Wikimedia recentchange SSE stream to Redpanda, with validation and a DLQ"
+requires-python = ">=3.13,<3.14"
+
+[tool.setuptools.packages.find]
+where = ["src"]

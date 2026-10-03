@@ -16,6 +16,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+*.egg-info/
 
 # dbt build output (profiles.yml is committed: it only uses env_var())
 dbt/target/
@@ -37,3 +38,6 @@ logs/
 # Notebooks outputs and OS files
 .ipynb_checkpoints/
 .DS_Store
+
+# Scratch output (reference recordings for the resume check)
+tmp/

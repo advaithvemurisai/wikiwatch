@@ -23,9 +23,10 @@ EXPECTED_PROFILES = {
     },
     "airflow": {"airflow-postgres", "airflow"},
     "dbt": {"trino"},
+    "producer": {"producer"},
 }
 # Budgets from CLAUDE.md: core within 6 GB, airflow and dbt about 2 GB each.
-BUDGET_MIB = {"core": 6 * 1024, "airflow": 2 * 1024, "dbt": 2 * 1024}
+BUDGET_MIB = {"core": 6 * 1024, "airflow": 2 * 1024, "dbt": 2 * 1024, "producer": 256}
 
 
 def to_mib(value: str) -> int:
@@ -93,3 +94,8 @@ def test_no_secret_literals_in_compose():
                 value = line.split(":", 1)[1].strip()
                 if value and "printf" not in line and "postgresql" not in value:
                     assert value.startswith("${"), f"literal secret-like value: {line.strip()}"
+
+
+def test_producer_is_never_auto_restarted():
+    """A restart with the wrong mode could skip events, so crashes must stay visible."""
+    assert SERVICES["producer"]["restart"] == "no"
