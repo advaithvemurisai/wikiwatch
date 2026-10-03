@@ -1,0 +1,23 @@
+[project]
+name = "wikiwatch"
+version = "0.1.0"
+description = "Real-time brand page monitoring on a streaming lakehouse"
+requires-python = ">=3.13,<3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "streaming/tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["web", "infra"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use assert and compare against the "changeme" placeholder on purpose.
+"**/tests/**" = ["S101", "S105"]
+"tests/**" = ["S101", "S105"]
+"scripts/smoke_trino.py" = ["S608"]

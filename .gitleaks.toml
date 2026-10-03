@@ -1,0 +1,14 @@
+# gitleaks config: default rules plus paths that are git-ignored on purpose.
+# .env.local holds random throwaway local secrets created by `make env-local`; it is
+# git-ignored, and `gitleaks git` would still catch it if it were ever committed.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Git-ignored local files"
+paths = [
+  '''(^|/)\.env\.(local|aws)$''',
+  '''(^|/)\.venv/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.terraform/''',
+]

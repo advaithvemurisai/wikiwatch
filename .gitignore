@@ -1,0 +1,39 @@
+# Secrets and local env (only .env.example is committed)
+.env*
+!.env.example
+secrets.toml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform/
+.terraform.lock.hcl.bak
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# dbt build output (profiles.yml is committed: it only uses env_var())
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+
+# Node / Next.js
+node_modules/
+web/.next/
+web/.vercel/
+
+# Spark and logs
+_checkpoints/
+spark-warehouse/
+metastore_db/
+logs/
+*.log
+
+# Notebooks outputs and OS files
+.ipynb_checkpoints/
+.DS_Store

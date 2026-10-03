@@ -1,0 +1,4 @@
+[sqlfluff]
+dialect = trino
+templater = jinja
+max_line_length = 100
