@@ -43,6 +43,7 @@ Pin exact versions in Task 1 and record them here:
 | Postgres (Airflow metadata) | 18.6 |
 | Terraform | 1.16.4 |
 | gitleaks / pre-commit / ruff / sqlfluff / pytest | 8.30.1 / 4.6.2 / 0.16.10 / 4.4.0 / 9.1.1 |
+| Producer image / libs | python:3.13.16-slim; confluent-kafka 2.15.1, httpx 0.28.1, jsonschema 4.26.0, boto3 1.43.108 |
 | Node (Task 8) | 24 LTS |
 
 Measured peak memory per profile (2026-10-03, M1 Air 8 GB, Docker VM 6 GB, `docker stats`
@@ -62,6 +63,9 @@ normal, 35 to 42% free):
   `core` (Redpanda, SeaweedFS, Iceberg REST catalog, Spark) must fit in 6 GB; `airflow` and
   `dbt` (Trino) are separate profiles of about 2 GB each. On an 8 GB machine, never run
   more than `core` plus one extra profile. Always start services through `make` targets.
+- The producer has its own small `producer` profile (192 MB limit). It starts only through
+  `make produce MODE=fresh|resume` and is never auto-restarted, because a restart in the
+  wrong mode could silently skip events.
 - `.env.local` holds only throwaway local credentials (SeaweedFS, local Postgres). Real cloud
   secrets never exist on the laptop; they live only in SSM. Permission rules are a
   guardrail, not a sandbox, so this is what actually keeps secrets safe.
@@ -133,14 +137,16 @@ normal, 35 to 42% free):
 | `make secrets-check` | gitleaks on the working tree and history |
 | `make web` | Run the Next.js app locally on fixture snapshots |
 | `make smoke` | Spark writes an Iceberg table, Trino reads it (needs `make up-dbt`) |
+| `make produce MODE=fresh\|resume` | Start the SSE producer (`fresh` only for the very first run or after long gaps) |
+| `make produce-stop` / `make producer-logs` | Stop the producer gracefully / follow its JSON logs |
 
 ## Verified facts (fill in from the first live session)
 
 | Fact | Value | Verified on |
 | --- | --- | --- |
-| Event rate, all wikis (events per second, p50 and peak) | | |
-| Temporary account name format | | |
-| Wikimedia stream history window for resume | | |
+| Event rate, all wikis (events per second, p50 and peak) | p50 about 42.5, peak 49.7 (30 s windows, 18 min sample, Saturday 21:04 to 21:22 UTC); one sample, not yet a daily profile | 2026-10-03 (live run) |
+| Temporary account name format | `~YYYY-NNNNN-NN` (e.g. `~2026-` + 5 digits + `-` + 2 digits); 6 of 400 sampled events, 0 IP editors | 2026-10-03 (live sample) |
+| Wikimedia stream history window for resume | 7 to 31 days per Wikimedia docs; a 70 s resume gap was verified live, longer gaps not yet | 2026-10-03 (docs + live 70 s gap) |
 | Redpanda Schema Registry JSON Schema support | Supported per Redpanda docs (drafts 04 to 2020-12); live check pending | 2026-10-03 (docs only) |
 
 Until a fact is verified, treat it as an assumption and flag code that depends on it.

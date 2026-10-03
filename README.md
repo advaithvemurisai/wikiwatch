@@ -24,6 +24,12 @@ Run `make venv` once beforehand to install the Python dev tools, and `make down`
 On an 8 GB machine, run `core` plus at most one extra profile: `make up`, `make up-dbt` or
 `make up-airflow`.
 
+To stream live edits, add a User-Agent with your contact details to `.env.local`
+(`WIKIWATCH_USER_AGENT=WikiWatch/0.1 (<your contact URL>)`, as Wikimedia requires), then run
+`make produce MODE=fresh` the first time and `make produce MODE=resume` after any stop.
+The producer is at-least-once: it saves its stream position only after Redpanda has
+acknowledged everything before it, so a crash can repeat events but never skip one.
+
 | UI | Address |
 | --- | --- |
 | Redpanda Console | http://localhost:8088 |
