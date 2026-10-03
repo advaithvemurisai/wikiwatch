@@ -13,7 +13,7 @@ class KafkaPublisher:
     this gives at-least-once delivery from the stream to Redpanda.
     """
 
-    def __init__(self, bootstrap_servers: str) -> None:
+    def __init__(self, bootstrap_servers: str, extra_config: dict | None = None) -> None:
         from confluent_kafka import Producer
 
         self._producer = Producer(
@@ -24,6 +24,7 @@ class KafkaPublisher:
                 "compression.type": "zstd",
                 "linger.ms": 50,
                 "client.id": "wikiwatch-producer",
+                **(extra_config or {}),
             }
         )
         self.delivered: Counter[str] = Counter()
