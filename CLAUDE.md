@@ -22,10 +22,10 @@ Do not add tools, services or features that the docs do not list. v2/v3 items
 
 ## Stack
 
-Python 3.11, Redpanda (Kafka API) + Schema Registry, Spark 3.5 Structured Streaming
+Python 3.13, Redpanda (Kafka API) + Schema Registry, Spark 4.1 Structured Streaming
 (local mode, one application), Apache Iceberg v2, AWS Glue catalog + S3 in the cloud,
-Iceberg REST catalog + MinIO locally, dbt-athena in the cloud and dbt-trino on local
-Trino, Athena, Airflow 3 (LocalExecutor; see docs/adr/0001-airflow-3.md), Next.js (App Router, TypeScript) on Vercel,
+Iceberg REST catalog + SeaweedFS locally (MinIO is unmaintained; see docs/adr/0002-seaweedfs-local-s3.md), dbt-athena in the cloud and dbt-trino on local
+Trino, Athena, Airflow 3 (LocalExecutor; see docs/adr/0001-airflow-3.md), Next.js (App Router, TypeScript, Node 24 LTS) on Vercel,
 Terraform, GitHub Actions with OIDC.
 
 Pin exact versions in Task 1 and record them here:
@@ -38,13 +38,13 @@ Pin exact versions in Task 1 and record them here:
 
 - Development machine: M1 MacBook Air. Use ARM64 or multi-arch images only.
 - Every Docker Compose service has a memory limit. Compose profiles keep the stack small:
-  `core` (Redpanda, MinIO, Iceberg REST catalog, Spark) must fit in 6 GB; `airflow` and
+  `core` (Redpanda, SeaweedFS, Iceberg REST catalog, Spark) must fit in 6 GB; `airflow` and
   `dbt` (Trino) are separate profiles of about 2 GB each. On an 8 GB machine, never run
   more than `core` plus one extra profile. Always start services through `make` targets.
-- `.env.local` holds only throwaway local credentials (MinIO, local Postgres). Real cloud
+- `.env.local` holds only throwaway local credentials (SeaweedFS, local Postgres). Real cloud
   secrets never exist on the laptop; they live only in SSM. Permission rules are a
   guardrail, not a sandbox, so this is what actually keeps secrets safe.
-- The same compose file runs locally (`.env.local`, MinIO) and on EC2 (`.env.aws`, S3).
+- The same compose file runs locally (`.env.local`, SeaweedFS) and on EC2 (`.env.aws`, S3).
 - All timestamps are UTC. All partitions use UTC dates and hours.
 
 ## Design invariants (never break these)
@@ -118,6 +118,6 @@ Pin exact versions in Task 1 and record them here:
 | Event rate, all wikis (events per second, p50 and peak) | | |
 | Temporary account name format | | |
 | Wikimedia stream history window for resume | | |
-| Redpanda Schema Registry JSON Schema support | | |
+| Redpanda Schema Registry JSON Schema support | Supported per Redpanda docs (drafts 04 to 2020-12); live check pending | 2026-10-03 (docs only) |
 
 Until a fact is verified, treat it as an assumption and flag code that depends on it.

@@ -90,7 +90,7 @@ Each choice below becomes an Architecture Decision Record (ADR) in the repo.
 | CI/CD | GitHub Actions with AWS OIDC | No stored AWS keys | Long-lived IAM keys |
 | Data quality | dbt tests + schema registry compatibility | Covers contracts and model checks with no extra tool | Great Expectations (tool overhead) |
 
-**Local parity:** MinIO, an Iceberg REST catalog and Trino locally mirror S3, Glue and Athena in the cloud. Athena engine v3 is Trino-based, so dbt models are tested in the dialect they run in; Spark's catalog and the dbt target switch by environment file. Start Trino only when working on dbt, to spare the Mac's memory.
+**Local parity:** SeaweedFS, an Iceberg REST catalog and Trino locally mirror S3, Glue and Athena in the cloud. Athena engine v3 is Trino-based, so dbt models are tested in the dialect they run in; Spark's catalog and the dbt target switch by environment file. Start Trino only when working on dbt, to spare the Mac's memory.
 
 ## Data model
 
@@ -294,7 +294,7 @@ No credential, password, key, webhook, account ID or internal hostname appears i
 | Airflow connections and Slack webhook | SSM, read through Airflow's SSM secrets backend | Airflow at runtime | Airflow UI connection list, DAG code, task logs |
 | Vercel access to dashboard snapshots | None stored; Vercel OIDC federation to an IAM role trusted only for this project's production environment | Short-lived role session in Vercel server functions | App code, page output, error messages |
 | AWS access for CI | None stored; GitHub OIDC | Short-lived role session | Repo secrets, workflow files |
-| Local MinIO and Postgres credentials | `.env.local` (git-ignored), throwaway values only | Docker Compose | Git history (commit `.env.example` with placeholders only) |
+| Local SeaweedFS and Postgres credentials | `.env.local` (git-ignored), throwaway values only | Docker Compose | Git history (commit `.env.example` with placeholders only) |
 
 **Repo and CI**
 
@@ -326,6 +326,8 @@ Planned spend is about $26, with a hard stop at $50, so at least half of the $10
 **Account plan first**
 
 The AWS Free Plan reportedly restricts Athena and larger instance types ([DevelopersIO](https://dev.classmethod.jp/en/articles/try-new-aws-free-tier-2025/)), and it closes the account after 6 months ([AWS FAQ](https://aws.amazon.com/free/free-tier-faqs/)). Check your console; if either service is blocked, upgrade to the Paid Plan before building. Credits still apply on the Paid Plan, and the guardrails below keep spend inside them. Setting up an AWS Budget is also one of the onboarding activities that can earn extra credits.
+
+**Upgrade to the Paid Plan before the first `terraform apply` (Task 7).** On the Free Plan the account is suspended after 6 months and data is kept only 90 days, which would take the lake and the `dashboard/` snapshots with it and break the "site keeps working after compute is destroyed" promise. Unused credits carry over to the Paid Plan and expire 12 months after account creation; the budget alerts and the $50 stop action stay the safety net. Estimate from list prices (2026-10-03, us-east-1): about $0.30 (spot) to $0.50 (on-demand) per 3-hour v1 session, so v1 needs about $4 to $6 of the $100.
 
 **Budget allocation (approximate on-demand prices, us-east-1)**
 
@@ -427,7 +429,7 @@ Snapshot Gold aggregates, drop a day of Silver, run the `backfill` DAG from Bron
 
 ## Repository structure
 
-One monorepo; the same Docker Compose file runs locally (with MinIO) and on EC2 (with S3), switched by an environment file.
+One monorepo; the same Docker Compose file runs locally (with SeaweedFS) and on EC2 (with S3), switched by an environment file.
 
 ```
 wikiwatch/
@@ -435,7 +437,7 @@ wikiwatch/
   CLAUDE.md                 # rules for Claude Code
   TASKS.md                  # ordered build tasks
   Makefile                  # make up, make test, make e2e, make web
-  docker-compose.yml        # profiles: core (redpanda, minio, iceberg-rest, spark), airflow, dbt (trino)
+  docker-compose.yml        # profiles: core (redpanda, seaweedfs, iceberg-rest, spark), airflow, dbt (trino)
   .env.example              # placeholders only; .env.local and .env.aws are git-ignored
   .claude/settings.json     # Claude Code permissions
   producer/                 # SSE client, schema validation, DLQ
@@ -469,7 +471,7 @@ wikiwatch/
 
 **Definition of done (full project, v1 to v3)**
 
-- [ ] `make up` runs the pipeline locally on the M1 Air with MinIO
+- [ ] `make up` runs the pipeline locally on the M1 Air with SeaweedFS
 - [ ] Producer resumes from `Last-Event-ID` and routes invalid events to the DLQ
 - [ ] Silver has zero duplicate `meta_id` after replaying injected duplicates
 - [ ] `gold.edits_per_min` produced by Spark with watermark and late-event handling

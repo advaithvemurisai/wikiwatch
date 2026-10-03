@@ -17,7 +17,7 @@ Task 1: create the repo skeleton and a working local stack.
 Build:
 - Folder layout from docs/plan.md (producer, schemas, streaming, dbt, airflow,
   web, infra, tests/e2e, docs/adr, .github/workflows).
-- docker-compose.yml with profiles: core (Redpanda + Console, MinIO, Iceberg REST
+- docker-compose.yml with profiles: core (Redpanda + Console, SeaweedFS, Iceberg REST
   catalog, Spark) under 6 GB total; airflow (LocalExecutor + its Postgres) about 2 GB;
   dbt (Trino) about 2 GB. ARM64 images only, memory limit on every service.
   Makefile targets up, up-airflow, up-dbt, down wrap the profiles.
@@ -47,7 +47,7 @@ Task 2: build the SSE producer.
 Build:
 - Python producer that reads the Wikimedia recentchange SSE stream with a descriptive
   User-Agent (from config, not hardcoded contact details).
-- fresh and resume modes. Last event ID written to object storage (MinIO locally,
+- fresh and resume modes. Last event ID written to object storage (SeaweedFS locally,
   S3 in cloud) every 30 seconds. Reconnect with exponential backoff and jitter.
 - JSON Schema in schemas/wiki_edits.json; validate every event; plain JSON to
   wiki_edits keyed by wiki + title; invalid events to wiki_edits_dlq with the reason.
@@ -164,7 +164,7 @@ Task 6: CI that proves the pipeline end to end on every pull request.
 Build:
 - tests/e2e fixture of about 5,000 events with injected duplicates, late events,
   one malformed event and scripted edits on 3 watched pages. No IP addresses.
-- make e2e: start a minimal compose profile (Redpanda, MinIO, REST catalog, Spark,
+- make e2e: start a minimal compose profile (Redpanda, SeaweedFS, REST catalog, Spark,
   Trino), replay the fixture through the producer's publish path, run Spark until
   caught up, run dbt, then assert: zero duplicate meta_id, exactly the expected
   alert_ids, 1 DLQ row, window totals match.
@@ -232,7 +232,7 @@ Build:
   validates before writing; row caps keep each file under 1 MB.
 - web/: Next.js App Router app in TypeScript with 3 pages (Alerts, Baseline, Pipeline
   health) exactly as specified. One server-side data module reads snapshots from S3
-  (via Vercel OIDC credentials), MinIO or web/fixtures/, chosen by env var; it
+  (via Vercel OIDC credentials), SeaweedFS or web/fixtures/, chosen by env var; it
   validates every snapshot (zod or ajv) and revalidates every 5 minutes. Recharts for
   charts. Offline banner when meta.json is older than 15 minutes. Error boundaries with
   a generic message. No AWS code in client components and no secrets in NEXT_PUBLIC_
@@ -245,7 +245,7 @@ validates; web type check, lint and build; a test that a snapshot with a wrong
 schema_version shows a friendly error, not a crash.
 
 Done when:
-- make web shows all three pages on fixtures; the app also works against MinIO.
+- make web shows all three pages on fixtures; the app also works against SeaweedFS.
 - A Vercel preview deploy builds from a PR using fixtures only.
 - After compute is destroyed, the production site still loads and shows the banner.
 ```
