@@ -31,6 +31,9 @@ services:
       - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
       - --rpc-addr=redpanda:33145
       - --advertise-rpc-addr=redpanda:33145
+    # Cluster properties for first start; auto topic creation is off (see the file).
+    volumes:
+      - ./conf/redpanda/bootstrap.yaml:/etc/redpanda/.bootstrap.yaml:ro
     ports:
       - "127.0.0.1:19092:19092"
       - "127.0.0.1:18081:18081"
@@ -57,7 +60,7 @@ services:
   seaweedfs:
     image: chrislusf/seaweedfs:4.48
     profiles: [core]
-    mem_limit: ${SEAWEEDFS_MEM_LIMIT:-384m}
+    mem_limit: ${SEAWEEDFS_MEM_LIMIT:-512m}
     environment:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in the env file}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in the env file}
@@ -121,15 +124,21 @@ services:
     image: wikiwatch/spark:4.1.3-iceberg1.12.0
     profiles: [core]
     mem_limit: ${SPARK_MEM_LIMIT:-2560m}
-    # Idles until Task 3 adds the streaming app; jobs run with spark-submit via make targets.
-    entrypoint: ["sleep", "infinity"]
+    # The streaming app is the container's main process. Auto-restart is safe: a restart
+    # within a session resumes from the session's checkpoints (invariant 6).
+    restart: unless-stopped
+    entrypoint:
+      - /opt/spark/bin/spark-submit
+      - --driver-memory=${SPARK_DRIVER_MEMORY:-1536m}
+      - --conf=spark.log.level=WARN
+      - /opt/wikiwatch/streaming/jobs/stream.py
     environment:
       <<: *s3-client-env
       CATALOG_TYPE: ${CATALOG_TYPE:-rest}
       CATALOG_URI: ${CATALOG_URI:-}
       WAREHOUSE: s3://${WAREHOUSE_BUCKET:-warehouse}/
       S3_ENDPOINT: ${S3_ENDPOINT:-}
-      SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-1536m}
+      KAFKA_BOOTSTRAP: redpanda:9092
       PYTHONPATH: /opt/wikiwatch
     volumes:
       - ./streaming:/opt/wikiwatch/streaming:ro
@@ -137,12 +146,15 @@ services:
     ports:
       - "127.0.0.1:4040:4040"
     healthcheck:
-      # PySpark is put on the path by spark-submit, so check the launcher and interpreter.
-      test: ["CMD-SHELL", "test -x /opt/spark/bin/spark-submit && python3.13 --version"]
+      # Healthy once the driver's UI answers (it starts before the app waits for topics).
+      test: ["CMD-SHELL", "curl -fs http://localhost:4040/api/v1/applications >/dev/null"]
       interval: 10s
-      timeout: 10s
-      retries: 5
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     depends_on:
+      redpanda:
+        condition: service_healthy
       iceberg-rest:
         condition: service_healthy
 

@@ -7,7 +7,7 @@ PY       := $(VENV)/bin/python
 STAMP    := $(VENV)/.installed
 ALL_PROFILES := --profile core --profile airflow --profile dbt --profile producer
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs test lint secrets-check e2e web check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay check-lake test lint secrets-check e2e web check-env
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
@@ -40,7 +40,8 @@ down: check-env ## Stop every profile (data volumes are kept)
 	$(COMPOSE) $(ALL_PROFILES) down
 
 smoke: check-env $(STAMP) ## Write an Iceberg table with Spark, read it with Trino (needs make up-dbt)
-	$(COMPOSE) exec -T spark sh -c '/opt/spark/bin/spark-submit --driver-memory "$$SPARK_DRIVER_MEMORY" /opt/wikiwatch/scripts/smoke_spark.py'
+	@# Runs in a one-off container so it never competes with the streaming app for memory.
+	$(COMPOSE) --profile core run --rm --no-deps -T --entrypoint /opt/spark/bin/spark-submit spark --driver-memory=768m /opt/wikiwatch/scripts/smoke_spark.py
 	$(PY) scripts/smoke_trino.py
 
 produce: check-env ## Start the producer: make produce MODE=fresh (first run) or MODE=resume
@@ -52,6 +53,16 @@ produce-stop: check-env ## Stop the producer gracefully (final checkpoint runs)
 
 producer-logs: check-env ## Follow the producer's JSON logs
 	$(COMPOSE) --profile core --profile producer logs -f --no-log-prefix producer
+
+spark-logs: check-env ## Follow the streaming app's logs
+	$(COMPOSE) --profile core logs -f --no-log-prefix spark
+
+replay: check-env $(STAMP) ## Publish a recorded fixture through the producer path: make replay FILE=...
+	@test -n "$(FILE)" || { echo "usage: make replay FILE=path/to/events.jsonl"; exit 1; }
+	$(PY) scripts/replay_fixture.py --file $(FILE)
+
+check-lake: check-env $(STAMP) ## Trino checks: Silver duplicates, Bronze offset gaps (needs make up-dbt)
+	$(PY) scripts/check_lake.py
 
 test: $(STAMP) ## Unit and contract tests (dbt tests arrive in Task 5)
 	$(PY) -m pytest

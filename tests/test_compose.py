@@ -81,8 +81,9 @@ def test_no_privileged_or_host_network(name):
 
 
 def test_redpanda_is_ephemeral():
-    """Invariant 1: nothing may depend on broker state surviving a session."""
-    assert "volumes" not in SERVICES["redpanda"]
+    """Invariant 1: no broker data survives a session; only read-only config is mounted."""
+    for volume in SERVICES["redpanda"].get("volumes", []):
+        assert volume.startswith("./conf/") and volume.endswith(":ro"), volume
 
 
 def test_no_secret_literals_in_compose():
@@ -99,3 +100,17 @@ def test_no_secret_literals_in_compose():
 def test_producer_is_never_auto_restarted():
     """A restart with the wrong mode could skip events, so crashes must stay visible."""
     assert SERVICES["producer"]["restart"] == "no"
+
+
+def test_redpanda_never_auto_creates_topics():
+    """Only the producer creates topics, so wiki_edits always has 6 partitions."""
+    bootstrap = yaml.safe_load((ROOT / "conf/redpanda/bootstrap.yaml").read_text())
+    assert bootstrap["auto_create_topics_enabled"] is False
+    assert any(".bootstrap.yaml" in v for v in SERVICES["redpanda"]["volumes"])
+
+
+def test_spark_runs_the_streaming_app_and_restarts():
+    """Restarting Spark is safe: it resumes from the session's checkpoints."""
+    spark = SERVICES["spark"]
+    assert spark["restart"] == "unless-stopped"
+    assert spark["entrypoint"][-1].endswith("streaming/jobs/stream.py")

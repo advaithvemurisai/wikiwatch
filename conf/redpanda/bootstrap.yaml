@@ -1,0 +1,4 @@
+# Redpanda cluster properties applied on first start (the broker is ephemeral, so every
+# session starts here). Only the producer creates topics, with 6 partitions: auto-creation
+# would let an early consumer create wiki_edits with 1 partition.
+auto_create_topics_enabled: false
