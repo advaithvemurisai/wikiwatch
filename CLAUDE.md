@@ -25,7 +25,7 @@ Do not add tools, services or features that the docs do not list. v2/v3 items
 Python 3.11, Redpanda (Kafka API) + Schema Registry, Spark 3.5 Structured Streaming
 (local mode, one application), Apache Iceberg v2, AWS Glue catalog + S3 in the cloud,
 Iceberg REST catalog + MinIO locally, dbt-athena in the cloud and dbt-trino on local
-Trino, Athena, Airflow 2 (LocalExecutor), Next.js (App Router, TypeScript) on Vercel,
+Trino, Athena, Airflow 3 (LocalExecutor; see docs/adr/0001-airflow-3.md), Next.js (App Router, TypeScript) on Vercel,
 Terraform, GitHub Actions with OIDC.
 
 Pin exact versions in Task 1 and record them here:

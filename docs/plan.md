@@ -298,7 +298,7 @@ No credential, password, key, webhook, account ID or internal hostname appears i
 
 **Repo and CI**
 
-- `.gitignore` covers `.env*` (except `.env.example`), `*.tfstate*`, `*.tfvars`, `.terraform/`, `profiles.yml`, `secrets.toml`, `logs/`, and notebook outputs.
+- `.gitignore` covers `.env*` (except `.env.example`), `*.tfstate*`, `*.tfvars`, `.terraform/`, `secrets.toml`, `logs/`, and notebook outputs. `dbt/profiles.yml` is committed: it reads every connection value through `env_var()` and holds no secrets, and CI needs it to run dbt.
 - `gitleaks` runs as a pre-commit hook and as a required CI step; GitHub secret scanning and push protection are on.
 - The OIDC trust policy is restricted to this repository and the `main` branch (plus `pull_request` for plan-only with a read-only role). Fork PRs never receive AWS credentials.
 - Terraform variables that hold anything sensitive are marked `sensitive = true`; no outputs expose them, so `plan` logs stay clean.
