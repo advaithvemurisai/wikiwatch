@@ -1,0 +1,225 @@
+# WikiWatch local stack. Start it through make targets, never directly:
+#   make up          core profile (Redpanda, SeaweedFS, Iceberg REST catalog, Spark)
+#   make up-dbt      core + Trino
+#   make up-airflow  core + Airflow
+# Every value comes from the env file (.env.local locally, .env.aws on EC2).
+# Ports bind to the loopback interface only, so nothing is reachable from the network.
+
+name: wikiwatch
+
+x-s3-client-env: &s3-client-env
+  AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-}
+  AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-}
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+
+services:
+  # ---------------------------------------------------------------- core
+  redpanda:
+    image: redpandadata/redpanda:v26.2.3
+    profiles: [core]
+    mem_limit: ${REDPANDA_MEM_LIMIT:-768m}
+    # Ephemeral by design (invariant 1): no volume, topics vanish with the container.
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=512M
+      - --overprovisioned
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:19092
+      - --schema-registry-addr=internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr=redpanda:33145
+      - --advertise-rpc-addr=redpanda:33145
+    ports:
+      - "127.0.0.1:19092:19092"
+      - "127.0.0.1:18081:18081"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redpanda-console:
+    image: redpandadata/console:v3.12.0
+    profiles: [core]
+    mem_limit: ${CONSOLE_MEM_LIMIT:-256m}
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+      SCHEMAREGISTRY_ENABLED: "true"
+      SCHEMAREGISTRY_URLS: http://redpanda:8081
+    ports:
+      - "127.0.0.1:8088:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.48
+    profiles: [core]
+    mem_limit: ${SEAWEEDFS_MEM_LIMIT:-384m}
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in the env file}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in the env file}
+    # The S3 identity file is written inside the container from env vars, so the
+    # credentials never live in a committed file.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        printf '{"identities":[{"name":"wikiwatch","credentials":[{"accessKey":"%s","secretKey":"%s"}],"actions":["Admin","Read","Write","List","Tagging"]}]}' "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY" > /tmp/s3.json
+        exec weed server -dir=/data -ip=seaweedfs -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=128 -s3 -s3.port=8333 -s3.config=/tmp/s3.json
+    volumes:
+      - seaweedfs-data:/data
+    ports:
+      - "127.0.0.1:8333:8333"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9333/cluster/status >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:4.48
+    profiles: [core]
+    mem_limit: ${SEAWEEDFS_INIT_MEM_LIMIT:-128m}
+    restart: "no"
+    # One-shot job: create the lake bucket if it does not exist yet (idempotent).
+    entrypoint:
+      - sh
+      - -c
+      - |
+        echo "s3.bucket.list" | weed shell -master=seaweedfs:9333 | grep -qw "${WAREHOUSE_BUCKET:-warehouse}" \
+          || echo "s3.bucket.create -name ${WAREHOUSE_BUCKET:-warehouse}" | weed shell -master=seaweedfs:9333
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+
+  iceberg-rest:
+    image: apache/iceberg-rest-fixture:1.10.1
+    profiles: [core]
+    mem_limit: ${ICEBERG_REST_MEM_LIMIT:-384m}
+    environment:
+      <<: *s3-client-env
+      JAVA_TOOL_OPTIONS: -Xmx256m
+      CATALOG_URI: jdbc:sqlite:/home/iceberg/iceberg_catalog.db
+      CATALOG_WAREHOUSE: s3://${WAREHOUSE_BUCKET:-warehouse}/
+      CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
+      CATALOG_S3_ENDPOINT: ${S3_ENDPOINT:-}
+      CATALOG_S3_PATH__STYLE__ACCESS: "true"
+    volumes:
+      - iceberg-catalog:/home/iceberg
+    ports:
+      - "127.0.0.1:8181:8181"
+    depends_on:
+      seaweedfs-init:
+        condition: service_completed_successfully
+
+  spark:
+    build:
+      context: docker/spark
+    image: wikiwatch/spark:4.1.3-iceberg1.12.0
+    profiles: [core]
+    mem_limit: ${SPARK_MEM_LIMIT:-2560m}
+    # Idles until Task 3 adds the streaming app; jobs run with spark-submit via make targets.
+    entrypoint: ["sleep", "infinity"]
+    environment:
+      <<: *s3-client-env
+      CATALOG_TYPE: ${CATALOG_TYPE:-rest}
+      CATALOG_URI: ${CATALOG_URI:-}
+      WAREHOUSE: s3://${WAREHOUSE_BUCKET:-warehouse}/
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      SPARK_DRIVER_MEMORY: ${SPARK_DRIVER_MEMORY:-1536m}
+      PYTHONPATH: /opt/wikiwatch
+    volumes:
+      - ./streaming:/opt/wikiwatch/streaming:ro
+      - ./scripts:/opt/wikiwatch/scripts:ro
+    ports:
+      - "127.0.0.1:4040:4040"
+    healthcheck:
+      # PySpark is put on the path by spark-submit, so check the launcher and interpreter.
+      test: ["CMD-SHELL", "test -x /opt/spark/bin/spark-submit && python3.13 --version"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      iceberg-rest:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------- dbt
+  trino:
+    image: trinodb/trino:483
+    profiles: [dbt]
+    mem_limit: ${TRINO_MEM_LIMIT:-2g}
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      CATALOG_URI: ${CATALOG_URI:-}
+      WAREHOUSE: s3://${WAREHOUSE_BUCKET:-warehouse}/
+    volumes:
+      - ./conf/trino/catalog:/etc/trino/catalog:ro
+    ports:
+      - "127.0.0.1:8085:8080"
+    healthcheck:
+      test: ["CMD", "/usr/lib/trino/bin/health-check"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      iceberg-rest:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------- airflow
+  airflow-postgres:
+    image: postgres:18.6
+    profiles: [airflow]
+    mem_limit: ${AIRFLOW_POSTGRES_MEM_LIMIT:-256m}
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_DB: airflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  airflow:
+    image: apache/airflow:3.3.2-python3.13
+    profiles: [airflow]
+    mem_limit: ${AIRFLOW_MEM_LIMIT:-1792m}
+    # Local only: one container runs the API server, scheduler, DAG processor and
+    # triggerer. Every local user is an admin, so no password is generated or logged.
+    # The cloud setup (Task 7/8) uses SSM-backed credentials instead.
+    command: standalone
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__PARALLELISM: "4"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "True"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?set AIRFLOW_FERNET_KEY in the env file}
+      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?set AIRFLOW_JWT_SECRET in the env file}
+      AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY:?set AIRFLOW_API_SECRET_KEY in the env file}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD}@airflow-postgres:5432/airflow
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8080/api/v2/monitor/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+
+volumes:
+  seaweedfs-data:
+  iceberg-catalog:
+  airflow-postgres-data:
