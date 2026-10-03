@@ -30,6 +30,10 @@ To stream live edits, add a User-Agent with your contact details to `.env.local`
 The producer is at-least-once: it saves its stream position only after Redpanda has
 acknowledged everything before it, so a crash can repeat events but never skip one.
 
+The Spark streaming app starts with the stack and waits until the producer has created the
+topics. It writes Bronze (raw events) and Silver (deduplicated, typed edits) Iceberg tables;
+`make check-lake` (with `make up-dbt`) verifies Silver has no duplicates and Bronze has no gaps.
+
 | UI | Address |
 | --- | --- |
 | Redpanda Console | http://localhost:8088 |

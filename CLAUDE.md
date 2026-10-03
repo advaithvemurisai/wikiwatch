@@ -38,6 +38,9 @@ Pin exact versions in Task 1 and record them here:
 | Iceberg REST catalog (`apache/iceberg-rest-fixture`) | 1.10.1 |
 | Spark (`apache/spark`, Scala 2.13, Java 17) | 4.1.3 |
 | Iceberg Spark runtime / AWS bundle | 1.12.0 / 1.12.0 |
+| Spark Kafka connector / kafka-clients | 4.1.3 / 3.9.1 |
+| hadoop-aws (s3a) + AWS SDK modules | 3.4.2 + s3-transfer-manager, apache-client 2.54.17 |
+| Java (host, for Spark unit tests) | OpenJDK 17 (Homebrew) |
 | Trino | 483 |
 | Airflow | 3.3.2 (python3.13 image) |
 | Postgres (Airflow metadata) | 18.6 |
@@ -55,6 +58,12 @@ normal, 35 to 42% free):
 | core | 4.4 GB | about 1.0 GB | `make smoke` (Spark job running) |
 | dbt (Trino) | 2.0 GB | about 0.9 GB | `make smoke` (Trino query) |
 | airflow (Airflow + Postgres) | 2.0 GB | about 1.1 GB | idle, no DAGs yet |
+
+Under load (2026-10-03, Task 3: streaming app + producer catching up 1 h + Trino queries):
+Spark about 1.1 GB, SeaweedFS 382 MB (so its limit was raised from 384 MB to 512 MB),
+Iceberg REST 260 MB, Redpanda 215 MB, Console 170 MB, producer 72 MB, Trino about 1.2 GB.
+Container peaks summed to about 3.4 GB. macOS memory pressure stayed normal (38% free), but
+total swap use rose to about 6.9 GB, so close other heavy apps while the stack runs.
 
 ## Environment
 
@@ -79,8 +88,11 @@ normal, 35 to 42% free):
 3. The producer stores its last event ID in S3 every 30 seconds and supports `fresh` and `resume` modes.
 4. The producer validates events against `schemas/` and publishes plain JSON. Invalid events go to `wiki_edits_dlq`.
 5. `wiki_edits` is keyed by `wiki` + `title`, 6 partitions.
-6. Spark checkpoints live under a per-session S3 path and are never reused across sessions.
-7. Silver dedup is an insert-only `MERGE` on `meta_id`, pruned to the last 3 hours of `event_hour`.
+6. Spark checkpoints live under a per-session S3 path (`_checkpoints/<session_id>/<query>`, where
+   `session_id` is Redpanda's cluster ID) and are never reused across sessions.
+7. Silver dedup is an insert-only `MERGE` on `meta_id`, pruned to the event-hour partitions present
+   in the micro-batch (duplicates share `meta.dt`, so this is exact for live data and replays;
+   see docs/adr/0005-silver-dedup-and-session-id.md).
 8. Real-time windows: 1-minute tumbling, 2-minute watermark, append mode.
 9. Alerts have a deterministic `alert_id`. Reprocessing never creates duplicates.
 10. Bronze is append-only. Silver and Gold must be rebuildable from Bronze.
@@ -139,6 +151,9 @@ normal, 35 to 42% free):
 | `make smoke` | Spark writes an Iceberg table, Trino reads it (needs `make up-dbt`) |
 | `make produce MODE=fresh\|resume` | Start the SSE producer (`fresh` only for the very first run or after long gaps) |
 | `make produce-stop` / `make producer-logs` | Stop the producer gracefully / follow its JSON logs |
+| `make spark-logs` | Follow the streaming app (it starts with `make up` and waits for topics) |
+| `make replay FILE=...` | Publish a recorded JSONL file through the producer's publish path |
+| `make check-lake` | Trino checks: Silver duplicates, Bronze offset gaps, Bronze-to-Silver completeness |
 
 ## Verified facts (fill in from the first live session)
 
