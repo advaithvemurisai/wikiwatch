@@ -1,0 +1,12 @@
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+# Copied from ../schemas/dashboard/ by scripts/copy-schemas.mjs before every build.
+src/schemas/
+.env*.local
+.vercel
+
+# Written by `next dev` (Next.js agent rules); regenerated on every run.
+AGENTS.md
+CLAUDE.md
