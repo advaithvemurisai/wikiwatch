@@ -17,6 +17,8 @@ import os
 import sys
 from pathlib import Path
 
+import httpx
+
 from wikiwatch_producer.config import DEFAULT_STREAM_URL
 from wikiwatch_producer.pipeline import is_canary
 from wikiwatch_producer.privacy import contains_ip
@@ -41,23 +43,29 @@ def main() -> int:
     client = SSEClient(DEFAULT_STREAM_URL, user_agent)
     stats = {"seen": 0, "kept": 0, "invalid": 0, "canary": 0, "dropped_ip": 0, "temp_accounts": 0}
     kept: list[str] = []
+    last_id = None
     try:
-        for sse_event in client.stream():
-            stats["seen"] += 1
-            if is_canary(sse_event.data):
-                stats["canary"] += 1
-                continue
-            result = validator.validate(sse_event.data)
-            if not result.ok:
-                stats["invalid"] += 1
-            elif contains_ip(sse_event.data):
-                stats["dropped_ip"] += 1
-            else:
-                kept.append(json.dumps(result.event, ensure_ascii=False))
-                stats["kept"] += 1
-                stats["temp_accounts"] += str(result.event.get("user", "")).startswith("~")
-            if stats["kept"] >= args.count:
-                break
+        while stats["kept"] < args.count:
+            try:
+                for sse_event in client.stream(last_id):
+                    last_id = sse_event.id or last_id
+                    stats["seen"] += 1
+                    if is_canary(sse_event.data):
+                        stats["canary"] += 1
+                        continue
+                    result = validator.validate(sse_event.data)
+                    if not result.ok:
+                        stats["invalid"] += 1
+                    elif contains_ip(sse_event.data):
+                        stats["dropped_ip"] += 1
+                    else:
+                        kept.append(json.dumps(result.event, ensure_ascii=False))
+                        stats["kept"] += 1
+                        stats["temp_accounts"] += str(result.event.get("user", "")).startswith("~")
+                    if stats["kept"] >= args.count:
+                        break
+            except httpx.HTTPError:
+                stats["reconnects"] = stats.get("reconnects", 0) + 1  # resume via Last-Event-ID
     finally:
         client.close()
 

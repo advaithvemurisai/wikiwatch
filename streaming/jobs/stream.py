@@ -36,7 +36,8 @@ from streaming.lib.transform import kafka_columns, to_bronze, to_bronze_dlq, to_
 from streaming.lib.windows import edits_per_minute
 
 TOPICS = ("wiki_edits", "wiki_edits_dlq")
-TRIGGER = "1 minute"
+# 1 minute in every real run (invariant 8 timing); the e2e test shortens it to stay fast.
+TRIGGER = os.environ.get("STREAM_TRIGGER", "1 minute")
 MAX_OFFSETS_PER_TRIGGER = 200_000  # bounds a catch-up batch after a long resume
 SEEDS_DIR = Path(os.environ.get("SEEDS_DIR", "/opt/wikiwatch/dbt/seeds"))
 

@@ -180,6 +180,7 @@ services:
       WAREHOUSE: s3://${WAREHOUSE_BUCKET:-warehouse}/
       S3_ENDPOINT: ${S3_ENDPOINT:-}
       KAFKA_BOOTSTRAP: redpanda:9092
+      STREAM_TRIGGER: ${STREAM_TRIGGER:-1 minute}
       PYTHONPATH: /opt/wikiwatch
     volumes:
       - ./streaming:/opt/wikiwatch/streaming:ro

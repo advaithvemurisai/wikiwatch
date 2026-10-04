@@ -10,6 +10,7 @@ Usage: python scripts/replay_fixture.py --file tmp/sample.jsonl [--bootstrap loc
 from __future__ import annotations
 
 import argparse
+import gzip
 import sys
 from pathlib import Path
 
@@ -43,7 +44,10 @@ def main() -> int:
     ensure_topics(AdminClient({"bootstrap.servers": args.bootstrap, **LOCALHOST_V4}))
     publisher = KafkaPublisher(args.bootstrap, extra_config=LOCALHOST_V4)
     pipeline = Pipeline(EventValidator(), publisher, NoCheckpoint(), checkpoint_every=1e9)
-    for line in args.file.read_text().splitlines():
+    opener = gzip.open if args.file.suffix == ".gz" else open
+    with opener(args.file, "rt", encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    for line in lines:
         if line.strip():
             pipeline.handle(SSEEvent(data=line))
     pipeline.checkpoint()  # flushes and raises if anything was not acknowledged
