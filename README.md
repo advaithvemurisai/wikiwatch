@@ -45,6 +45,11 @@ Batch Gold models (R5 burst alerts, complete per-minute windows, hourly bot shar
 daily digest per watched page) are built with dbt: `make dbt-build` runs them and every dbt
 test on local Trino, and the same project runs on Athena in the cloud.
 
+`make e2e` replays a recorded, privacy-scrubbed fixture of about 5,000 events through the
+real pipeline on a throwaway stack and checks the results exactly: no duplicate events, the
+exact expected alerts, one rejected event, and per-minute window counts. CI runs it, plus
+lint, unit, contract and secret checks, on every pull request.
+
 | UI | Address |
 | --- | --- |
 | Redpanda Console | http://localhost:8088 |

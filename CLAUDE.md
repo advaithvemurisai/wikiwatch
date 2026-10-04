@@ -150,7 +150,7 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | `make up-airflow` | `core` plus Airflow |
 | `make up-dbt` | `core` plus Trino for dbt work |
 | `make test` | Unit and contract tests, plus dbt unit tests when Trino is up (loud SKIPPED otherwise) |
-| `make e2e` | End-to-end fixture replay test |
+| `make e2e` | End-to-end replay test on a throwaway `wikiwatch-e2e` stack (stop the dev stack first) |
 | `make lint` | ruff, sqlfluff, terraform fmt, tflint |
 | `make secrets-check` | gitleaks on the working tree and history |
 | `make web` | Run the Next.js app locally on fixture snapshots |
@@ -171,6 +171,6 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | Event rate, all wikis (events per second, p50 and peak) | p50 about 42.5, peak 49.7 (30 s windows, 18 min sample, Saturday 21:04 to 21:22 UTC); one sample, not yet a daily profile | 2026-10-03 (live run) |
 | Temporary account name format | `~YYYY-NNNNN-NN` (e.g. `~2026-` + 5 digits + `-` + 2 digits); 6 of 400 sampled events, 0 IP editors | 2026-10-03 (live sample) |
 | Wikimedia stream history window for resume | 7 to 31 days per Wikimedia docs; a 70 s resume gap was verified live, longer gaps not yet | 2026-10-03 (docs + live 70 s gap) |
-| Redpanda Schema Registry JSON Schema support | Supported per Redpanda docs (drafts 04 to 2020-12); live check pending | 2026-10-03 (docs only) |
+| Redpanda Schema Registry JSON Schema support | Supported, including BACKWARD compatibility checks (a new required field is rejected with REQUIRED_ATTRIBUTE_ADDED) | 2026-10-04 (live) |
 
 Until a fact is verified, treat it as an assumption and flag code that depends on it.
