@@ -34,6 +34,13 @@ The Spark streaming app starts with the stack and waits until the producer has c
 topics. It writes Bronze (raw events) and Silver (deduplicated, typed edits) Iceberg tables;
 `make check-lake` (with `make up-dbt`) verifies Silver has no duplicates and Bronze has no gaps.
 
+The watchlist (`dbt/seeds/watchlist.csv`) is 60 real English Wikipedia company and product
+pages, no biographies. Brightline Brands is fictional: Unilever and its brands stand in as its
+"own brand" and products, and other consumer goods companies stand in as competitors. To
+change a page or an alert threshold, edit the CSV and run `make load-ref`; the stream applies
+it from the next micro-batch. `make alert-scenario` replays scripted edits and checks that
+exactly the expected alerts appear.
+
 | UI | Address |
 | --- | --- |
 | Redpanda Console | http://localhost:8088 |

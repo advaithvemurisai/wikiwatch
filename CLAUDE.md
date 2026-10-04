@@ -43,7 +43,7 @@ Pin exact versions in Task 1 and record them here:
 | Java (host, for Spark unit tests) | OpenJDK 17 (Homebrew) |
 | Trino | 483 |
 | Airflow | 3.3.2 (python3.13 image) |
-| Postgres (Airflow metadata) | 18.6 |
+| Postgres (local catalog + Airflow metadata) / JDBC driver | 18.6 / 42.7.13 |
 | Terraform | 1.16.4 |
 | gitleaks / pre-commit / ruff / sqlfluff / pytest | 8.30.1 / 4.6.2 / 0.16.10 / 4.4.0 / 9.1.1 |
 | Producer image / libs | python:3.13.16-slim; confluent-kafka 2.15.1, httpx 0.28.1, jsonschema 4.26.0, boto3 1.43.108 |
@@ -65,12 +65,17 @@ Iceberg REST 260 MB, Redpanda 215 MB, Console 170 MB, producer 72 MB, Trino abou
 Container peaks summed to about 3.4 GB. macOS memory pressure stayed normal (38% free), but
 total swap use rose to about 6.9 GB, so close other heavy apps while the stack runs.
 
+Task 4 (2026-10-03, five streaming queries + producer + Trino): Spark peaked at 2.2 GB of
+its 2.5 GB limit, so the limit was raised to 3 GB; Postgres 40 MB, Iceberg REST 170 MB,
+SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (32% free).
+
 ## Environment
 
 - Development machine: M1 MacBook Air. Use ARM64 or multi-arch images only.
 - Every Docker Compose service has a memory limit. Compose profiles keep the stack small:
-  `core` (Redpanda, SeaweedFS, Iceberg REST catalog, Spark) must fit in 6 GB; `airflow` and
-  `dbt` (Trino) are separate profiles of about 2 GB each. On an 8 GB machine, never run
+  `core` (Redpanda, SeaweedFS, Iceberg REST catalog backed by Postgres, Spark) must fit in
+  6 GB; `airflow` and `dbt` (Trino) are separate profiles of about 2 GB each. The core
+  Postgres also holds Airflow's metadata (ADR 0007). On an 8 GB machine, never run
   more than `core` plus one extra profile. Always start services through `make` targets.
 - The producer has its own small `producer` profile (192 MB limit). It starts only through
   `make produce MODE=fresh|resume` and is never auto-restarted, because a restart in the
@@ -154,6 +159,8 @@ total swap use rose to about 6.9 GB, so close other heavy apps while the stack r
 | `make spark-logs` | Follow the streaming app (it starts with `make up` and waits for topics) |
 | `make replay FILE=...` | Publish a recorded JSONL file through the producer's publish path |
 | `make check-lake` | Trino checks: Silver duplicates, Bronze offset gaps, Bronze-to-Silver completeness |
+| `make load-ref` | Reload `ref.watchlist` / `ref.alert_rules` from `dbt/seeds/` (applies next micro-batch) |
+| `make alert-scenario` | Replay the scripted edits; exact expected alerts and detection latency |
 
 ## Verified facts (fill in from the first live session)
 
