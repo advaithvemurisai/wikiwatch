@@ -41,6 +41,10 @@ change a page or an alert threshold, edit the CSV and run `make load-ref`; the s
 it from the next micro-batch. `make alert-scenario` replays scripted edits and checks that
 exactly the expected alerts appear.
 
+Batch Gold models (R5 burst alerts, complete per-minute windows, hourly bot share and a
+daily digest per watched page) are built with dbt: `make dbt-build` runs them and every dbt
+test on local Trino, and the same project runs on Athena in the cloud.
+
 | UI | Address |
 | --- | --- |
 | Redpanda Console | http://localhost:8088 |

@@ -47,6 +47,7 @@ Pin exact versions in Task 1 and record them here:
 | Terraform | 1.16.4 |
 | gitleaks / pre-commit / ruff / sqlfluff / pytest | 8.30.1 / 4.6.2 / 0.16.10 / 4.4.0 / 9.1.1 |
 | Producer image / libs | python:3.13.16-slim; confluent-kafka 2.15.1, httpx 0.28.1, jsonschema 4.26.0, boto3 1.43.108 |
+| dbt-core / dbt-trino / dbt-athena | 1.12.5 / 1.10.6 / 1.11.1 |
 | Node (Task 8) | 24 LTS |
 
 Measured peak memory per profile (2026-10-03, M1 Air 8 GB, Docker VM 6 GB, `docker stats`
@@ -148,7 +149,7 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | `make up` / `make down` | Start or stop the `core` profile |
 | `make up-airflow` | `core` plus Airflow |
 | `make up-dbt` | `core` plus Trino for dbt work |
-| `make test` | Unit, contract and dbt tests |
+| `make test` | Unit and contract tests, plus dbt unit tests when Trino is up (loud SKIPPED otherwise) |
 | `make e2e` | End-to-end fixture replay test |
 | `make lint` | ruff, sqlfluff, terraform fmt, tflint |
 | `make secrets-check` | gitleaks on the working tree and history |
@@ -161,6 +162,7 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | `make check-lake` | Trino checks: Silver duplicates, Bronze offset gaps, Bronze-to-Silver completeness |
 | `make load-ref` | Reload `ref.watchlist` / `ref.alert_rules` from `dbt/seeds/` (applies next micro-batch) |
 | `make alert-scenario` | Replay the scripted edits; exact expected alerts and detection latency |
+| `make dbt-build` / `make dbt-docs` | dbt models and all dbt tests on local Trino / lineage docs in `dbt/target/` |
 
 ## Verified facts (fill in from the first live session)
 
