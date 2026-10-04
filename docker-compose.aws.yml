@@ -1,0 +1,43 @@
+# Cloud overlay for EC2, used with docker-compose.yml when ENV_FILE=.env.aws (the Makefile
+# adds it automatically). On AWS the lake is S3 and the catalog is Glue, so the local
+# stand-ins (SeaweedFS, the Iceberg REST catalog and Trino) move to a `local` profile that
+# is never started there, and nothing depends on them.
+#
+# Spark and the producer also lose the static S3 key variables: on EC2 the instance role
+# provides credentials, and an empty key variable can shadow it in some AWS SDKs.
+
+services:
+  seaweedfs:
+    profiles: !override [local]
+
+  seaweedfs-init:
+    profiles: !override [local]
+
+  iceberg-rest:
+    profiles: !override [local]
+
+  trino:
+    profiles: !override [local]
+
+  spark:
+    depends_on: !override
+      redpanda:
+        condition: service_healthy
+    environment: !override
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      CATALOG_TYPE: ${CATALOG_TYPE:-glue}
+      WAREHOUSE: s3://${WAREHOUSE_BUCKET:?set WAREHOUSE_BUCKET in the env file}/
+      KAFKA_BOOTSTRAP: redpanda:9092
+      STREAM_TRIGGER: ${STREAM_TRIGGER:-1 minute}
+      PYTHONPATH: /opt/wikiwatch
+
+  producer:
+    depends_on: !override
+      redpanda:
+        condition: service_healthy
+    environment: !override
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      SCHEMA_REGISTRY_URL: http://redpanda:8081
+      WIKIWATCH_USER_AGENT: ${WIKIWATCH_USER_AGENT:-}
+      STATE_BUCKET: ${WAREHOUSE_BUCKET:?set WAREHOUSE_BUCKET in the env file}

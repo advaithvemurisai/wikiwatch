@@ -1,15 +1,19 @@
 # WikiWatch developer commands. See CLAUDE.md for the rules behind them.
 
 ENV_FILE ?= .env.local
-COMPOSE  := docker compose --env-file $(ENV_FILE)
+# On EC2 (ENV_FILE=.env.aws) the cloud overlay swaps SeaweedFS and the REST catalog for S3 + Glue.
+COMPOSE_FILES := -f docker-compose.yml $(if $(filter .env.aws,$(ENV_FILE)),-f docker-compose.aws.yml)
+COMPOSE  := docker compose $(COMPOSE_FILES) --env-file $(ENV_FILE)
 VENV     := .venv
 DBT      := DBT_PROFILES_DIR=dbt $(VENV)/bin/dbt --no-use-colors
 DBT_ARGS := --project-dir dbt
 PY       := $(VENV)/bin/python
 STAMP    := $(VENV)/.installed
 ALL_PROFILES := --profile core --profile airflow --profile dbt --profile producer
+TF_STACKS := bootstrap foundation compute
+TFLINT ?= tflint
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test dbt-build dbt-docs lint secrets-check e2e web check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test dbt-build dbt-docs lint tf-validate secrets-check e2e web check-env
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
@@ -91,7 +95,16 @@ lint: $(STAMP) ## ruff, sqlfluff, terraform fmt, tflint
 	$(VENV)/bin/ruff format --check .
 	@if find dbt -name '*.sql' | grep -q .; then $(VENV)/bin/sqlfluff lint dbt; else echo "sqlfluff: no SQL yet"; fi
 	terraform fmt -check -recursive infra
-	@if command -v tflint >/dev/null; then tflint --chdir=infra --recursive; else echo "tflint: not installed (needed from Task 7)"; fi
+	@command -v $(TFLINT) >/dev/null || { echo "tflint not found (install: docs/first-apply-checklist.md)"; exit 1; }
+	$(TFLINT) --chdir=infra --init --config=$(CURDIR)/infra/.tflint.hcl >/dev/null
+	$(TFLINT) --chdir=infra --recursive --config=$(CURDIR)/infra/.tflint.hcl
+
+tf-validate: ## terraform init (no backend, no AWS) and validate for every stack
+	@for stack in $(TF_STACKS); do \
+		echo "== $$stack"; \
+		terraform -chdir=infra/$$stack init -backend=false -input=false >/dev/null && \
+		terraform -chdir=infra/$$stack validate -no-color || exit 1; \
+	done
 
 secrets-check: ## gitleaks on the full git history and the working tree
 	gitleaks git --no-banner --redact .
