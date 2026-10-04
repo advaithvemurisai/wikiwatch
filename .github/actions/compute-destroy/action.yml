@@ -1,0 +1,35 @@
+# Destroy the compute stack (shared by demo-down and nightly-destroy). The caller has
+# already set up Terraform and assumed the deploy role. Terraform's own output goes to
+# /dev/null because it contains ARNs and network details; scripts/tf_plan_summary.py
+# prints addresses and actions only.
+name: compute-destroy
+description: Plan and apply a destroy of infra/compute.
+
+inputs:
+  state-bucket:
+    description: Terraform state bucket.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Plan the destroy
+      shell: bash
+      working-directory: infra/compute
+      env:
+        TF_STATE_BUCKET: ${{ inputs.state-bucket }}
+        TF_VAR_state_bucket: ${{ inputs.state-bucket }}
+      run: |
+        terraform init -input=false -backend-config="bucket=$TF_STATE_BUCKET" > /dev/null
+        terraform plan -destroy -input=false -no-color -out=destroy.tfplan > /dev/null
+        terraform show -json destroy.tfplan > "$RUNNER_TEMP/plan.json"
+        python3 "$GITHUB_WORKSPACE/scripts/tf_plan_summary.py" "$RUNNER_TEMP/plan.json"
+        rm -f "$RUNNER_TEMP/plan.json"
+
+    - name: Destroy
+      shell: bash
+      working-directory: infra/compute
+      run: |
+        terraform apply -input=false -no-color destroy.tfplan > /dev/null
+        rm -f destroy.tfplan
+        echo "Compute stack destroyed."
