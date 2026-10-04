@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 import pytest
@@ -16,5 +17,9 @@ FIXTURES = sorted(
 
 @pytest.mark.parametrize("path", FIXTURES, ids=lambda p: str(p.relative_to(ROOT)))
 def test_fixture_has_no_ip_addresses(path):
-    for number, line in enumerate(path.read_text(errors="ignore").splitlines(), start=1):
+    if path.suffix == ".gz":
+        text = gzip.decompress(path.read_bytes()).decode("utf-8")
+    else:
+        text = path.read_text(errors="ignore")
+    for number, line in enumerate(text.splitlines(), start=1):
         assert not contains_ip(line), f"{path.name}:{number} contains an IP address"
