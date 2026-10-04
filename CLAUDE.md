@@ -44,7 +44,9 @@ Pin exact versions in Task 1 and record them here:
 | Trino | 483 |
 | Airflow | 3.3.2 (python3.13 image) |
 | Postgres (local catalog + Airflow metadata) / JDBC driver | 18.6 / 42.7.13 |
-| Terraform | 1.16.4 |
+| Terraform / AWS provider | 1.16.4 / 6.67.0 |
+| tflint / AWS ruleset | 0.64.0 / 0.49.0 |
+| EC2 session image / AWS CLI image (reads SSM at boot) | Ubuntu 24.04 arm64 (latest from SSM) / amazon/aws-cli:2.37.9 |
 | gitleaks / pre-commit / ruff / sqlfluff / pytest | 8.30.1 / 4.6.2 / 0.16.10 / 4.4.0 / 9.1.1 |
 | Producer image / libs | python:3.13.16-slim; confluent-kafka 2.15.1, httpx 0.28.1, jsonschema 4.26.0, boto3 1.43.108 |
 | dbt-core / dbt-trino / dbt-athena | 1.12.5 / 1.10.6 / 1.11.1 |
@@ -85,6 +87,8 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
   secrets never exist on the laptop; they live only in SSM. Permission rules are a
   guardrail, not a sandbox, so this is what actually keeps secrets safe.
 - The same compose file runs locally (`.env.local`, SeaweedFS) and on EC2 (`.env.aws`, S3).
+  On EC2, `make ... ENV_FILE=.env.aws` adds `docker-compose.aws.yml`, which drops SeaweedFS,
+  the REST catalog and Trino (S3, Glue and Athena replace them).
 - All timestamps are UTC. All partitions use UTC dates and hours.
 
 ## Design invariants (never break these)
@@ -110,7 +114,10 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 ## Security rules
 
 - Never write secrets, passwords, keys, webhooks, account IDs, hostnames or IPs into code,
-  config, tests, fixtures, logs, docs or commit messages.
+  config, tests, fixtures, logs, docs or commit messages. Exception: address ranges that
+  identify no real host may appear in code and tests: private (RFC 1918, e.g. the VPC's
+  10.42.0.0/16), loopback, documentation-only (RFC 5737, RFC 3849) and the any-address
+  route 0.0.0.0/0.
 - Local secrets go in `.env.local` (git-ignored). Commit `.env.example` with placeholders only.
 - Cloud secrets live in SSM Parameter Store. Terraform never creates or outputs secret values.
 - Mark sensitive Terraform variables `sensitive = true`.
@@ -152,6 +159,7 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | `make test` | Unit and contract tests, plus dbt unit tests when Trino is up (loud SKIPPED otherwise) |
 | `make e2e` | End-to-end replay test on a throwaway `wikiwatch-e2e` stack (stop the dev stack first) |
 | `make lint` | ruff, sqlfluff, terraform fmt, tflint |
+| `make tf-validate` | `terraform init -backend=false` + `validate` for every stack (no AWS access) |
 | `make secrets-check` | gitleaks on the working tree and history |
 | `make web` | Run the Next.js app locally on fixture snapshots |
 | `make smoke` | Spark writes an Iceberg table, Trino reads it (needs `make up-dbt`) |
