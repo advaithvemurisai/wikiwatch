@@ -85,3 +85,10 @@ def test_r2_needs_its_thresholds():
     bad = [r._replace(min_removed_bytes=None) if r.rule_id == "R2" else r for r in RULES]
     with pytest.raises(SeedError, match="R2"):
         validate_rules(bad)
+
+
+@pytest.mark.parametrize("minutes", [0, 7, 45])
+def test_r5_window_must_divide_an_hour(minutes):
+    bad = [r._replace(window_minutes=minutes) if r.rule_id == "R5" else r for r in RULES]
+    with pytest.raises(SeedError, match="divide 60"):
+        validate_rules(bad)

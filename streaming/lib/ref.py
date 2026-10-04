@@ -61,6 +61,9 @@ def validate_rules(rows: list) -> None:
     r5 = next(r for r in rows if r.rule_id == "R5")
     if r5.min_edits is None or r5.window_minutes is None:
         raise SeedError("R5 needs min_edits and window_minutes")
+    if r5.window_minutes <= 0 or 60 % r5.window_minutes:
+        # dbt's burst_alerts aligns windows inside each hour (:00, :10, ...).
+        raise SeedError("R5 window_minutes must divide 60 (for example 5, 10, 15, 30)")
 
 
 def load_ref(spark, seeds_dir: Path) -> dict[str, int]:
