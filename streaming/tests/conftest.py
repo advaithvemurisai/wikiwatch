@@ -25,6 +25,7 @@ def spark(tmp_path_factory):
         SparkSession.builder.master("local[2]")
         .appName("wikiwatch-tests")
         .config("spark.jars.packages", ICEBERG_PACKAGE)
+        .config("spark.jars.ivy", str(Path.home() / ".ivy2"))  # fixed path: CI caches it
         .config(
             "spark.sql.extensions",
             "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",

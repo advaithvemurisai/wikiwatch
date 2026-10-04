@@ -7,7 +7,7 @@ useDefault = true
 [[allowlists]]
 description = "Git-ignored local files"
 paths = [
-  '''(^|/)\.env\.(local|aws)$''',
+  '''(^|/)\.env\.(local|aws|e2e)$''',
   '''(^|/)\.venv/''',
   '''(^|/)node_modules/''',
   '''(^|/)\.terraform/''',

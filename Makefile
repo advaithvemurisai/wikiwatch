@@ -97,8 +97,8 @@ secrets-check: ## gitleaks on the full git history and the working tree
 	gitleaks git --no-banner --redact .
 	gitleaks dir --no-banner --redact .
 
-e2e: ## End-to-end fixture replay test
-	@echo "make e2e is added in Task 6"; exit 1
+e2e: $(STAMP) ## End-to-end replay test on a throwaway stack (dev stack must be down)
+	$(PY) tests/e2e/run_e2e.py
 
 web: ## Run the Next.js app on fixture snapshots
 	@echo "make web is added in Task 8"; exit 1
