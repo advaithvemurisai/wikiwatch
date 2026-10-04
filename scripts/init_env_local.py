@@ -1,8 +1,9 @@
-"""Create .env.local from .env.example with random throwaway secrets.
+"""Create .env.local from .env.example with random throwaway secrets, or add new keys.
 
 Every value equal to "changeme" is replaced with a fresh random secret. The secrets are
 written to the file only; they are never printed. An existing .env.local is never
-overwritten, so re-running is safe.
+overwritten: keys that .env.example gained since it was created are appended (with fresh
+secrets where needed), and only their names are printed. Re-running is always safe.
 
 Usage: python scripts/init_env_local.py [--example PATH] [--target PATH]
 """
@@ -45,13 +46,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--target", type=Path, default=REPO_ROOT / ".env.local")
     args = parser.parse_args(argv)
 
-    if args.target.exists():
-        print(f"{args.target.name} already exists; leaving it unchanged.")
+    rendered = render(args.example.read_text())
+    if not args.target.exists():
+        args.target.write_text(rendered)
+        args.target.chmod(0o600)
+        print(f"Created {args.target.name} with random local secrets.")
         return 0
-    args.target.write_text(render(args.example.read_text()))
-    args.target.chmod(0o600)
-    print(f"Created {args.target.name} with random local secrets.")
+    existing = env_keys(args.target.read_text())
+    missing = [
+        line for line in rendered.splitlines() if (key := env_key(line)) and key not in existing
+    ]
+    if not missing:
+        print(f"{args.target.name} is up to date; leaving it unchanged.")
+        return 0
+    with args.target.open("a") as f:
+        f.write("\n# Added by make env-local\n" + "\n".join(missing) + "\n")
+    print(f"Added to {args.target.name}: {', '.join(env_key(line) for line in missing)}")
     return 0
+
+
+def env_key(line: str) -> str | None:
+    """Return the variable name of an assignment line, or None for comments and blanks."""
+    key, sep, _ = line.partition("=")
+    if not sep or line.lstrip().startswith("#"):
+        return None
+    return key.strip()
+
+
+def env_keys(text: str) -> set[str]:
+    return {key for line in text.splitlines() if (key := env_key(line))}
 
 
 if __name__ == "__main__":

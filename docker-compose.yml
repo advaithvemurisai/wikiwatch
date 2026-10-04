@@ -77,7 +77,12 @@ services:
     ports:
       - "127.0.0.1:8333:8333"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9333/cluster/status >/dev/null || exit 1"]
+      # Master and filer must both answer: the S3 API and bucket commands need the filer.
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://localhost:9333/cluster/status >/dev/null && wget -qO- http://localhost:8888/ >/dev/null",
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -87,34 +92,68 @@ services:
     profiles: [core]
     mem_limit: ${SEAWEEDFS_INIT_MEM_LIMIT:-128m}
     restart: "no"
-    # One-shot job: create the lake bucket if it does not exist yet (idempotent).
+    # One-shot job: create the lake bucket if it does not exist yet (idempotent). Retries
+    # while the filer registers with the master, and fails if the bucket never appears.
     entrypoint:
       - sh
       - -c
       - |
-        echo "s3.bucket.list" | weed shell -master=seaweedfs:9333 | grep -qw "${WAREHOUSE_BUCKET:-warehouse}" \
-          || echo "s3.bucket.create -name ${WAREHOUSE_BUCKET:-warehouse}" | weed shell -master=seaweedfs:9333
+        for attempt in $$(seq 1 30); do
+          if echo "s3.bucket.list" | weed shell -master=seaweedfs:9333 2>/dev/null | grep -qw "${WAREHOUSE_BUCKET:-warehouse}"; then
+            echo "bucket ready"; exit 0
+          fi
+          echo "s3.bucket.create -name ${WAREHOUSE_BUCKET:-warehouse}" | weed shell -master=seaweedfs:9333 >/dev/null 2>&1
+          sleep 2
+        done
+        echo "bucket was not created"; exit 1
     depends_on:
       seaweedfs:
         condition: service_healthy
 
+  postgres:
+    image: postgres:18.6
+    profiles: [core]
+    mem_limit: ${POSTGRES_MEM_LIMIT:-256m}
+    # Local metadata only: the Iceberg REST catalog and Airflow, each with its own role and
+    # database (conf/postgres/init-databases.sh). Not used in the cloud, where Glue is the
+    # catalog; on EC2 it holds only Airflow's metadata.
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?set CATALOG_DB_PASSWORD in the env file (make env-local adds it)}
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:?set AIRFLOW_DB_PASSWORD in the env file (make env-local adds it)}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./conf/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d iceberg_catalog"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   iceberg-rest:
-    image: apache/iceberg-rest-fixture:1.10.1
+    build:
+      context: docker/iceberg-rest
+    image: wikiwatch/iceberg-rest:1.10.1-pg42.7.13
     profiles: [core]
     mem_limit: ${ICEBERG_REST_MEM_LIMIT:-384m}
     environment:
       <<: *s3-client-env
       JAVA_TOOL_OPTIONS: -Xmx256m
-      CATALOG_URI: jdbc:sqlite:/home/iceberg/iceberg_catalog.db
+      # Postgres instead of SQLite: concurrent commits from several streaming queries
+      # need a database with real multi-writer locking (ADR 0007).
+      CATALOG_URI: jdbc:postgresql://postgres:5432/iceberg_catalog
+      CATALOG_JDBC_USER: iceberg_catalog
+      CATALOG_JDBC_PASSWORD: ${CATALOG_DB_PASSWORD:?set CATALOG_DB_PASSWORD in the env file}
       CATALOG_WAREHOUSE: s3://${WAREHOUSE_BUCKET:-warehouse}/
       CATALOG_IO__IMPL: org.apache.iceberg.aws.s3.S3FileIO
       CATALOG_S3_ENDPOINT: ${S3_ENDPOINT:-}
       CATALOG_S3_PATH__STYLE__ACCESS: "true"
-    volumes:
-      - iceberg-catalog:/home/iceberg
     ports:
       - "127.0.0.1:8181:8181"
     depends_on:
+      postgres:
+        condition: service_healthy
       seaweedfs-init:
         condition: service_completed_successfully
 
@@ -123,7 +162,7 @@ services:
       context: docker/spark
     image: wikiwatch/spark:4.1.3-iceberg1.12.0
     profiles: [core]
-    mem_limit: ${SPARK_MEM_LIMIT:-2560m}
+    mem_limit: ${SPARK_MEM_LIMIT:-3072m}
     # The streaming app is the container's main process. Auto-restart is safe: a restart
     # within a session resumes from the session's checkpoints (invariant 6).
     restart: unless-stopped
@@ -210,22 +249,6 @@ services:
         condition: service_healthy
 
   # ---------------------------------------------------------------- airflow
-  airflow-postgres:
-    image: postgres:18.6
-    profiles: [airflow]
-    mem_limit: ${AIRFLOW_POSTGRES_MEM_LIMIT:-256m}
-    environment:
-      POSTGRES_USER: airflow
-      POSTGRES_DB: airflow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
-    volumes:
-      - airflow-postgres-data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-
   airflow:
     image: apache/airflow:3.3.2-python3.13
     profiles: [airflow]
@@ -242,7 +265,7 @@ services:
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?set AIRFLOW_FERNET_KEY in the env file}
       AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?set AIRFLOW_JWT_SECRET in the env file}
       AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY:?set AIRFLOW_API_SECRET_KEY in the env file}
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD}@airflow-postgres:5432/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
     volumes:
       - ./airflow/dags:/opt/airflow/dags:ro
     ports:
@@ -254,10 +277,9 @@ services:
       retries: 20
       start_period: 60s
     depends_on:
-      airflow-postgres:
+      postgres:
         condition: service_healthy
 
 volumes:
   seaweedfs-data:
-  iceberg-catalog:
-  airflow-postgres-data:
+  postgres-data:

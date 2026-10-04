@@ -18,10 +18,11 @@ EXPECTED_PROFILES = {
         "redpanda-console",
         "seaweedfs",
         "seaweedfs-init",
+        "postgres",
         "iceberg-rest",
         "spark",
     },
-    "airflow": {"airflow-postgres", "airflow"},
+    "airflow": {"airflow"},
     "dbt": {"trino"},
     "producer": {"producer"},
 }

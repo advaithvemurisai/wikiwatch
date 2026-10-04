@@ -41,12 +41,25 @@ def test_each_run_generates_different_secrets():
     assert a != b
 
 
-def test_existing_file_is_never_overwritten(tmp_path):
+def test_existing_values_are_never_overwritten(tmp_path):
     example, target = tmp_path / "example", tmp_path / "target"
     example.write_text(EXAMPLE)
-    target.write_text("KEEP=me\n")
+    target.write_text("CATALOG_TYPE=glue\nS3_SECRET_KEY=mine\nAIRFLOW_FERNET_KEY=mine\n")
     assert init_env_local.main(["--example", str(example), "--target", str(target)]) == 0
-    assert target.read_text() == "KEEP=me\n"
+    assert target.read_text() == "CATALOG_TYPE=glue\nS3_SECRET_KEY=mine\nAIRFLOW_FERNET_KEY=mine\n"
+
+
+def test_new_keys_are_appended_with_fresh_secrets_and_only_names_printed(tmp_path, capsys):
+    example, target = tmp_path / "example", tmp_path / "target"
+    example.write_text(EXAMPLE + "NEW_DB_PASSWORD=changeme\nNEW_SETTING=on\n")
+    target.write_text("CATALOG_TYPE=rest\nS3_SECRET_KEY=mine\nAIRFLOW_FERNET_KEY=mine\n")
+    init_env_local.main(["--example", str(example), "--target", str(target)])
+    values = parse(target.read_text())
+    assert values["S3_SECRET_KEY"] == "mine"  # untouched
+    assert values["NEW_SETTING"] == "on"
+    assert values["NEW_DB_PASSWORD"] != "changeme" and len(values["NEW_DB_PASSWORD"]) >= 24
+    printed = capsys.readouterr().out
+    assert "NEW_DB_PASSWORD" in printed and values["NEW_DB_PASSWORD"] not in printed
 
 
 def test_secrets_are_never_printed_and_file_is_private(tmp_path, capsys):
