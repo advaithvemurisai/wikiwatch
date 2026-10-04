@@ -7,7 +7,7 @@ PY       := $(VENV)/bin/python
 STAMP    := $(VENV)/.installed
 ALL_PROFILES := --profile core --profile airflow --profile dbt --profile producer
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay check-lake test lint secrets-check e2e web check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test lint secrets-check e2e web check-env
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
@@ -60,6 +60,12 @@ spark-logs: check-env ## Follow the streaming app's logs
 replay: check-env $(STAMP) ## Publish a recorded fixture through the producer path: make replay FILE=...
 	@test -n "$(FILE)" || { echo "usage: make replay FILE=path/to/events.jsonl"; exit 1; }
 	$(PY) scripts/replay_fixture.py --file $(FILE)
+
+load-ref: check-env ## Reload ref tables from dbt/seeds/*.csv (applies from the next micro-batch)
+	$(COMPOSE) --profile core run --rm --no-deps -T --entrypoint /opt/spark/bin/spark-submit spark --driver-memory=768m /opt/wikiwatch/streaming/jobs/load_ref.py
+
+alert-scenario: check-env $(STAMP) ## Replay scripted edits; check exact alerts and detection latency (needs make up-dbt)
+	$(PY) scripts/run_alert_scenario.py
 
 check-lake: check-env $(STAMP) ## Trino checks: Silver duplicates, Bronze offset gaps (needs make up-dbt)
 	$(PY) scripts/check_lake.py

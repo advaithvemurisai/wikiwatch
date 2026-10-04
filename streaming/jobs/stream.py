@@ -3,6 +3,12 @@
     bronze_edits  wiki_edits      -> lake.bronze.wiki_edits_raw   (append)
     bronze_dlq    wiki_edits_dlq  -> lake.bronze.wiki_edits_dlq   (append)
     silver_edits  wiki_edits      -> lake.silver.wiki_edits       (insert-only MERGE)
+    gold_edits_per_min  wiki_edits -> lake.gold.edits_per_min     (windows, append)
+    gold_alerts   wiki_edits      -> lake.gold.watched_page_alerts (R1-R4, insert-only MERGE)
+
+The two Gold queries read Kafka through the same to_silver transform as Silver instead of
+reading the Silver table: one trigger instead of two keeps per-edit detection under
+2 minutes (docs/adr/0006-alerts-and-ref-tables.md).
 
 Run with spark-submit inside the spark container (it is the container's main process).
 """
@@ -13,8 +19,11 @@ import json
 import os
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 from streaming.lib import progress
+from streaming.lib.alerts import process_batch as process_alert_batch
+from streaming.lib.ref import load_ref_if_empty
 from streaming.lib.session import (
     build_spark,
     checkpoint_path,
@@ -22,12 +31,14 @@ from streaming.lib.session import (
     session_id_from_cluster_id,
 )
 from streaming.lib.silver import merge_into_silver
-from streaming.lib.tables import BRONZE_DLQ, BRONZE_EDITS, create_tables
+from streaming.lib.tables import BRONZE_DLQ, BRONZE_EDITS, GOLD_EDITS_PER_MIN, create_tables
 from streaming.lib.transform import kafka_columns, to_bronze, to_bronze_dlq, to_silver
+from streaming.lib.windows import edits_per_minute
 
 TOPICS = ("wiki_edits", "wiki_edits_dlq")
 TRIGGER = "1 minute"
 MAX_OFFSETS_PER_TRIGGER = 200_000  # bounds a catch-up batch after a long resume
+SEEDS_DIR = Path(os.environ.get("SEEDS_DIR", "/opt/wikiwatch/dbt/seeds"))
 
 
 def log(record: dict) -> None:
@@ -80,7 +91,8 @@ def main() -> None:
     session_id = session_id_from_cluster_id(admin.describeCluster().clusterId().get())
     admin.close()
     create_tables(spark)
-    log({"msg": "startup", "session_id": session_id})
+    loaded = load_ref_if_empty(spark, SEEDS_DIR)
+    log({"msg": "startup", "session_id": session_id, "ref_loaded": loaded is not None})
 
     buffer = progress.ProgressBuffer()
     spark.streams.addListener(progress.ProgressListener(buffer, session_id))
@@ -105,6 +117,12 @@ def main() -> None:
     ).option("fanout-enabled", "true").toTable(BRONZE_DLQ)
     sink(to_silver(edits), "silver_edits").foreachBatch(
         lambda batch, batch_id: merge_into_silver(batch)
+    ).start()
+    sink(edits_per_minute(to_silver(edits)), "gold_edits_per_min").format("iceberg").outputMode(
+        "append"
+    ).option("fanout-enabled", "true").toTable(GOLD_EDITS_PER_MIN)
+    sink(to_silver(edits), "gold_alerts").foreachBatch(
+        lambda batch, batch_id: process_alert_batch(batch)
     ).start()
 
     try:

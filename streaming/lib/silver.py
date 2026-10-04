@@ -39,32 +39,39 @@ def hour_filter(alias: str, hours: list[str]) -> str:
     return "(" + " OR ".join(ranges) + ")"
 
 
-def merge_into_silver(rows: DataFrame, table: str = SILVER_EDITS) -> int:
-    """Insert rows whose meta_id is not already in Silver. Returns the source row count.
+def insert_new_rows(rows: DataFrame, table: str, key: str, stamp_column: str) -> int:
+    """Insert-only MERGE of rows whose ``key`` is not already in ``table``.
 
-    Rows are deduplicated within the batch first: an insert-only MERGE would otherwise
-    insert both copies of a duplicate that arrives twice in the same micro-batch.
-    Re-running the same batch (Spark retries a failed foreachBatch) inserts nothing new.
+    Rows are deduplicated on ``key`` within the batch first: an insert-only MERGE would
+    otherwise insert both copies of a duplicate that arrives twice in one batch. The
+    target is matched only in the batch's event hours (see module docstring). Re-running
+    the same batch (Spark retries a failed foreachBatch) inserts nothing new. Returns the
+    number of unique source rows.
     """
     unique = (
-        rows.dropDuplicates(["meta_id"])
-        .withColumn("processed_at", F.current_timestamp().cast("timestamp_ntz"))
+        rows.dropDuplicates([key])
+        .withColumn(stamp_column, F.current_timestamp().cast("timestamp_ntz"))
         .persist()  # used three times: hours, MERGE, count
     )
     try:
         hours = batch_hours(unique)
         if not hours:
             return 0
-        view = "silver_merge_source"
+        view = f"merge_source_{table.replace('.', '_')}"
         unique.createOrReplaceTempView(view)
         rows.sparkSession.sql(
             f"""
             MERGE INTO {table} t
             USING {view} s
-            ON t.meta_id = s.meta_id AND {hour_filter("t", hours)}
+            ON t.{key} = s.{key} AND {hour_filter("t", hours)}
             WHEN NOT MATCHED THEN INSERT *
             """
         )
         return unique.count()
     finally:
         unique.unpersist()
+
+
+def merge_into_silver(rows: DataFrame, table: str = SILVER_EDITS) -> int:
+    """Insert Silver rows whose meta_id is not already in Silver (invariant 7)."""
+    return insert_new_rows(rows, table, key="meta_id", stamp_column="processed_at")

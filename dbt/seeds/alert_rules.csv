@@ -1,0 +1,6 @@
+rule_id,rule_name,severity,min_removed_bytes,min_removed_fraction,min_edits,window_minutes,enabled
+R1,Page deleted or moved,high,,,,,true
+R2,Large removal,medium,2000,0.2,,,true
+R3,Unregistered editor,low,,,,,true
+R4,Protection change,low,,,,,true
+R5,Edit burst,medium,,,5,10,true

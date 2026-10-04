@@ -1,0 +1,132 @@
+{
+  "scn-01": {
+    "alerts": [
+      [
+        "R1",
+        "high"
+      ]
+    ],
+    "why": "page deleted"
+  },
+  "scn-02": {
+    "alerts": [
+      [
+        "R1",
+        "high"
+      ]
+    ],
+    "why": "page moved"
+  },
+  "scn-03": {
+    "alerts": [],
+    "why": "restore is not a deletion"
+  },
+  "scn-04": {
+    "alerts": [
+      [
+        "R4",
+        "low"
+      ]
+    ],
+    "why": "protection added"
+  },
+  "scn-05": {
+    "alerts": [
+      [
+        "R2",
+        "medium"
+      ]
+    ],
+    "why": "registered removes 3,000 bytes"
+  },
+  "scn-06": {
+    "alerts": [
+      [
+        "R2",
+        "high"
+      ],
+      [
+        "R3",
+        "low"
+      ]
+    ],
+    "why": "temporary account removes 80%"
+  },
+  "scn-07": {
+    "alerts": [],
+    "why": "bots never raise R2"
+  },
+  "scn-08": {
+    "alerts": [
+      [
+        "R3",
+        "low"
+      ]
+    ],
+    "why": "temporary account small edit"
+  },
+  "scn-09": {
+    "alerts": [
+      [
+        "R3",
+        "low"
+      ]
+    ],
+    "why": "temporary account creates page"
+  },
+  "scn-10": {
+    "alerts": [
+      [
+        "R2",
+        "medium"
+      ]
+    ],
+    "why": "exactly -2,000 bytes"
+  },
+  "scn-11": {
+    "alerts": [],
+    "why": "-1,999 bytes"
+  },
+  "scn-12": {
+    "alerts": [],
+    "why": "exactly 20% removed"
+  },
+  "scn-13": {
+    "alerts": [
+      [
+        "R2",
+        "medium"
+      ]
+    ],
+    "why": "20.1% removed"
+  },
+  "scn-14": {
+    "alerts": [],
+    "why": "talk namespace ignored"
+  },
+  "scn-15": {
+    "alerts": [],
+    "why": "unwatched page"
+  },
+  "scn-16": {
+    "alerts": [],
+    "why": "registered growth"
+  },
+  "scn-17": {
+    "alerts": [
+      [
+        "R4",
+        "low"
+      ]
+    ],
+    "why": "bots can raise R4"
+  },
+  "scn-18": {
+    "alerts": [],
+    "why": "categorize event"
+  },
+  "scn-19": {
+    "alerts": [],
+    "why": "malformed: goes to the DLQ"
+  }
+}

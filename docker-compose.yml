@@ -182,6 +182,7 @@ services:
     volumes:
       - ./streaming:/opt/wikiwatch/streaming:ro
       - ./scripts:/opt/wikiwatch/scripts:ro
+      - ./dbt/seeds:/opt/wikiwatch/dbt/seeds:ro
     ports:
       - "127.0.0.1:4040:4040"
     healthcheck:
