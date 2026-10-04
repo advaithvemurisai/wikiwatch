@@ -50,8 +50,20 @@ real pipeline on a throwaway stack and checks the results exactly: no duplicate 
 exact expected alerts, one rejected event, and per-minute window counts. CI runs it, plus
 lint, unit, contract and secret checks, on every pull request.
 
+With `make up-airflow`, the `dbt_gold` DAG rebuilds Gold every 30 minutes and exports the
+dashboard snapshots (`alerts.json`, `baseline.json`, `meta.json`), and `freshness_monitor`
+writes `health.json` (freshness, record funnel, micro-batch stats, consumer lag) every
+5 minutes. Every snapshot is validated against `schemas/dashboard/` before it is written.
+
+The dashboard (`web/`, Next.js, Node 24) has three pages: Alerts, Baseline and Pipeline
+health. `make web` runs it on the fixture snapshots in `web/fixtures/` at
+http://localhost:3000, and `make web-s3` reads the snapshots from local SeaweedFS instead.
+On Vercel, production reads them from S3 through OIDC federation, with no stored keys
+([docs/vercel-setup.md](docs/vercel-setup.md)).
+
 | UI | Address |
 | --- | --- |
+| Dashboard (with `make web`) | http://localhost:3000 |
 | Redpanda Console | http://localhost:8088 |
 | Airflow (with `make up-airflow`) | http://localhost:8080 |
 | Trino (with `make up-dbt`) | http://localhost:8085 |

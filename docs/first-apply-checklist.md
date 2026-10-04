@@ -125,10 +125,11 @@ they grant access: only this repository's workflows can assume the roles.
 - [ ] Run **nightly-destroy** once by hand (workflow_dispatch) with a session up, to prove
       the safety net, as the v1 acceptance criteria require.
 
-## Later (Task 8)
+## Vercel (after foundation)
 
-- In Vercel, set `AWS_ROLE_ARN` (the `vercel_role_arn` output) and `AWS_REGION` for the
-  **production** environment only, and enable OIDC federation in team issuer mode.
+- Follow docs/vercel-setup.md: root directory `web`, OIDC federation in team issuer mode,
+  and `SNAPSHOT_SOURCE`, `SNAPSHOT_BUCKET` (the `lake_bucket` output), `AWS_REGION` and
+  `AWS_ROLE_ARN` (the `vercel_role_arn` output) for the **production** environment only.
 
 ## Laptop tools (no AWS access needed)
 
