@@ -41,3 +41,40 @@ services:
       SCHEMA_REGISTRY_URL: http://redpanda:8081
       WIKIWATCH_USER_AGENT: ${WIKIWATCH_USER_AGENT:-}
       STATE_BUCKET: ${WAREHOUSE_BUCKET:?set WAREHOUSE_BUCKET in the env file}
+
+  # Airflow on EC2: queries go to Athena, dbt targets Athena, the lake is S3 through the
+  # instance role, Airflow connections and variables come from SSM Parameter Store, and
+  # the UI requires a login (reached only through SSM port forwarding; no inbound ports).
+  airflow:
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+    entrypoint: !override ["/bin/bash", "-c"]
+    # The admin password comes from SSM through .env.aws; it is written to a root-only
+    # file inside the container and never echoed.
+    command: !override
+      - >-
+        umask 077 &&
+        printf '{"admin": "%s"}' "$$AIRFLOW_ADMIN_PASSWORD" > /tmp/airflow-passwords.json &&
+        exec /entrypoint airflow standalone
+    environment: !override
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__PARALLELISM: "4"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS: "False"
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: admin:admin
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_PASSWORDS_FILE: /tmp/airflow-passwords.json
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:?set AIRFLOW_ADMIN_PASSWORD (SSM /wikiwatch/env/)}
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?set AIRFLOW_FERNET_KEY in the env file}
+      AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?set AIRFLOW_JWT_SECRET in the env file}
+      AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY:?set AIRFLOW_API_SECRET_KEY in the env file}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+      AIRFLOW__SECRETS__BACKEND: airflow.providers.amazon.aws.secrets.systems_manager.SystemsManagerParameterStoreBackend
+      AIRFLOW__SECRETS__BACKEND_KWARGS: '{"connections_prefix": "/wikiwatch/airflow/connections", "variables_prefix": "/wikiwatch/airflow/variables", "region_name": "${AWS_REGION:-us-east-1}"}'
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      QUERY_ENGINE: athena
+      ATHENA_WORKGROUP: ${ATHENA_WORKGROUP:?set ATHENA_WORKGROUP in the env file}
+      ATHENA_S3_STAGING_DIR: ${ATHENA_S3_STAGING_DIR:?set ATHENA_S3_STAGING_DIR in the env file}
+      DBT_TARGET: aws
+      KAFKA_BOOTSTRAP: redpanda:9092
+      WAREHOUSE_BUCKET: ${WAREHOUSE_BUCKET:?set WAREHOUSE_BUCKET in the env file}

@@ -213,7 +213,7 @@ def test_user_data_never_prints_secrets():
 def test_user_data_checks_out_a_tag_and_verifies_dockers_key():
     assert '--branch "${repo_tag}"' in USER_DATA
     assert "9DC858229FC7DD38854AE2D88D81803C0EBFCD88" in USER_DATA
-    assert "make up ENV_FILE=.env.aws" in USER_DATA
+    assert "make up-airflow ENV_FILE=.env.aws" in USER_DATA  # core + Airflow on EC2
     assert "make produce" not in USER_DATA.split("# 5.")[1].split("\n", 3)[-1]
 
 

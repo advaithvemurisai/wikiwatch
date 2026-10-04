@@ -13,7 +13,7 @@ ALL_PROFILES := --profile core --profile airflow --profile dbt --profile produce
 TF_STACKS := bootstrap foundation compute
 TFLINT ?= tflint
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test dbt-build dbt-docs lint tf-validate secrets-check e2e web check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test test-dags dbt-build dbt-docs lint tf-validate secrets-check e2e web check-env
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
@@ -83,6 +83,17 @@ test: $(STAMP) ## Unit and contract tests, plus dbt unit tests when Trino is up
 	else \
 		echo ""; echo "WARNING: dbt unit tests SKIPPED - Trino is not running (start it with: make up-dbt)"; \
 	fi
+
+AIRFLOW_IMAGE := wikiwatch/airflow:3.3.2-dbt1.12.5
+
+test-dags: ## Import-check the Airflow DAGs inside the real Airflow image (no services needed)
+	docker build -q -t $(AIRFLOW_IMAGE) docker/airflow >/dev/null
+	docker run --rm -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////tmp/airflow.db \
+		-e AIRFLOW__CORE__LOAD_EXAMPLES=False \
+		-v "$(CURDIR)/airflow/dags:/opt/airflow/dags:ro" \
+		-v "$(CURDIR)/airflow/tests:/opt/wikiwatch/airflow/tests:ro" \
+		-v "$(CURDIR)/orchestration:/opt/wikiwatch/orchestration:ro" \
+		--entrypoint python $(AIRFLOW_IMAGE) /opt/wikiwatch/airflow/tests/check_dag_imports.py
 
 dbt-build: check-env $(STAMP) ## dbt models and all dbt tests on local Trino (needs make up-dbt)
 	$(DBT) build $(DBT_ARGS) --target local

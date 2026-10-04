@@ -64,12 +64,14 @@ put CATALOG_DB_PASSWORD "$(rand)"
 put AIRFLOW_DB_PASSWORD "$(rand)"
 put AIRFLOW_JWT_SECRET "$(rand)"
 put AIRFLOW_API_SECRET_KEY "$(rand)"
+put AIRFLOW_ADMIN_PASSWORD "$(rand)"   # Airflow UI login (user: admin); read it later with
+                                       # aws ssm get-parameter --with-decryption, in CloudShell
 put AIRFLOW_FERNET_KEY "$(python3 -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
 put WIKIWATCH_USER_AGENT 'WikiWatch/0.1 (https://github.com/advaithvemurisai/wikiwatch)'
 ```
 
 - [ ] `aws ssm get-parameters-by-path --path /wikiwatch/env/ --query 'Parameters[].Name'`
-      lists all 7 names (names only, no values).
+      lists all 8 names (names only, no values).
 
 ## 4. Foundation
 
