@@ -3,11 +3,13 @@
 ENV_FILE ?= .env.local
 COMPOSE  := docker compose --env-file $(ENV_FILE)
 VENV     := .venv
+DBT      := DBT_PROFILES_DIR=dbt $(VENV)/bin/dbt --no-use-colors
+DBT_ARGS := --project-dir dbt
 PY       := $(VENV)/bin/python
 STAMP    := $(VENV)/.installed
 ALL_PROFILES := --profile core --profile airflow --profile dbt --profile producer
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test lint secrets-check e2e web check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test dbt-build dbt-docs lint secrets-check e2e web check-env
 
 help:
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
@@ -70,8 +72,19 @@ alert-scenario: check-env $(STAMP) ## Replay scripted edits; check exact alerts 
 check-lake: check-env $(STAMP) ## Trino checks: Silver duplicates, Bronze offset gaps (needs make up-dbt)
 	$(PY) scripts/check_lake.py
 
-test: $(STAMP) ## Unit and contract tests (dbt tests arrive in Task 5)
+test: $(STAMP) ## Unit and contract tests, plus dbt unit tests when Trino is up
 	$(PY) -m pytest
+	@if curl -fs http://localhost:8085/v1/info >/dev/null 2>&1; then \
+		$(DBT) test $(DBT_ARGS) --select "test_type:unit"; \
+	else \
+		echo ""; echo "WARNING: dbt unit tests SKIPPED - Trino is not running (start it with: make up-dbt)"; \
+	fi
+
+dbt-build: check-env $(STAMP) ## dbt models and all dbt tests on local Trino (needs make up-dbt)
+	$(DBT) build $(DBT_ARGS) --target local
+
+dbt-docs: check-env $(STAMP) ## Generate dbt docs (lineage) into dbt/target/
+	$(DBT) docs generate $(DBT_ARGS) --target local
 
 lint: $(STAMP) ## ruff, sqlfluff, terraform fmt, tflint
 	$(VENV)/bin/ruff check .

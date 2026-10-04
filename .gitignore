@@ -41,3 +41,4 @@ logs/
 
 # Scratch output (reference recordings for the resume check)
 tmp/
+dbt/.user.yml

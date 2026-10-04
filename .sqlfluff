@@ -2,3 +2,22 @@
 dialect = trino
 templater = jinja
 max_line_length = 100
+# ST09 wants join conditions ordered by table, ST06 wants plain columns before computed ones;
+# we order by key and by grain (window first) for readability.
+exclude_rules = ST09, ST06
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+
+# Lint-time stand-ins for project macros that need dbt's run context (run_started_at).
+# They render the same shape of SQL, so layout and syntax rules still apply.
+[sqlfluff:templater:jinja:macros]
+event_time_filter = {% macro event_time_filter(column, grain='hour') %}{{ column }} >= timestamp '2026-01-01 00:00:00'{% endmacro %}
+recent = {% macro recent(column) %}{{ column }} >= timestamp '2026-01-01 00:00:00'{% endmacro %}
+settled_before = {% macro settled_before() %}2026-01-01 00:00:00{% endmacro %}
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower

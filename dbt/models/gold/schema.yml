@@ -1,0 +1,192 @@
+# Data tests only scan the last test_window_days (partition-pruned). dbt does not allow
+# custom macros in a test's where config, so the bound is built from run_started_at here.
+version: 2
+
+models:
+  - name: edits_per_min_final
+    config:
+      # Each adapter reads its own keys: Trino uses properties, Athena uses
+      # table_type/partitioned_by (see docs/adr/0008-dbt-on-trino-and-athena.md).
+      properties: {partitioning: "ARRAY['day(window_start)']", format_version: "2"}
+      table_type: iceberg
+      partitioned_by: ['day(window_start)']
+    description: Complete 1-minute windows per wiki from Silver, including late events.
+    data_tests:
+      - unique_combination:
+          arguments: {columns: [window_start, wiki]}
+          config: {where: "window_start >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+    columns:
+      - name: window_start
+        data_tests: [not_null]
+      - name: edits
+        data_tests: [not_null]
+
+  - name: bot_ratio_hourly
+    config:
+      # Each adapter reads its own keys: Trino uses properties, Athena uses
+      # table_type/partitioned_by (see docs/adr/0008-dbt-on-trino-and-athena.md).
+      properties: {partitioning: "ARRAY['day(hour_start)']", format_version: "2"}
+      table_type: iceberg
+      partitioned_by: ['day(hour_start)']
+    description: Hourly bot share per wiki (edit and new events).
+    data_tests:
+      - unique_combination:
+          arguments: {columns: [hour_start, wiki]}
+          config: {where: "hour_start >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+
+  - name: burst_alerts
+    config:
+      # Each adapter reads its own keys: Trino uses properties, Athena uses
+      # table_type/partitioned_by (see docs/adr/0008-dbt-on-trino-and-athena.md).
+      properties: {partitioning: "ARRAY['day(window_start)']", format_version: "2"}
+      table_type: iceberg
+      partitioned_by: ['day(window_start)']
+    description: R5 edit bursts on watched articles, one row per page and 10-minute window.
+    columns:
+      - name: alert_id
+        data_tests:
+          - unique:
+              config: {where: "window_start >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+          - not_null:
+              config: {where: "window_start >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+      - name: severity
+        data_tests:
+          - accepted_values:
+              arguments: {values: [high, medium, low]}
+              config: {where: "window_start >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+
+  - name: watchlist_daily_digest
+    config:
+      # Each adapter reads its own keys: Trino uses properties, Athena uses
+      # table_type/partitioned_by (see docs/adr/0008-dbt-on-trino-and-athena.md).
+      properties: {partitioning: "ARRAY['digest_date']", format_version: "2"}
+      table_type: iceberg
+      partitioned_by: ['digest_date']
+    description: Per watched page and UTC day, activity, editor mix and alert counts.
+    data_tests:
+      - unique_combination:
+          arguments: {columns: [digest_date, wiki, title]}
+          config: {where: "digest_date >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+
+unit_tests:
+  - name: r5_five_edits_in_one_window_raise_one_alert
+    model: burst_alerts
+    overrides:
+      macros: {is_incremental: false}
+      vars: {event_time_floor: "2000-01-01 00:00:00"}
+    given:
+      - input: source('silver', 'wiki_edits')
+        rows:
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:00:05"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:02:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: new, event_ts: "2026-10-03 12:04:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:06:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:09:59"}
+      - input: source('ref', 'watchlist')
+        rows:
+          - {wiki: enwiki, title: Unilever, category: own_brand, owner_team: corporate-comms}
+      - input: source('ref', 'alert_rules')
+        rows:
+          - {rule_id: R5, severity: medium, min_edits: 5, window_minutes: 10, enabled: true}
+    expect:
+      rows:
+        - alert_id: d866416af6b8f70081bd782a217c03ee6ea216677ab4a2a5ac3698afb4cbf8f9
+          rule_id: R5
+          severity: medium
+          window_start: "2026-10-03 12:00:00"
+          window_end: "2026-10-03 12:10:00"
+          edits: 5
+          category: own_brand
+
+  - name: r5_four_edits_raise_nothing
+    model: burst_alerts
+    overrides:
+      macros: {is_incremental: false}
+      vars: {event_time_floor: "2000-01-01 00:00:00"}
+    given:
+      - input: source('silver', 'wiki_edits')
+        rows:
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:01:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:02:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:03:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:04:00"}
+      - input: source('ref', 'watchlist')
+        rows:
+          - {wiki: enwiki, title: Unilever, category: own_brand, owner_team: corporate-comms}
+      - input: source('ref', 'alert_rules')
+        rows:
+          - {rule_id: R5, severity: medium, min_edits: 5, window_minutes: 10, enabled: true}
+    expect:
+      rows: []
+
+  - name: r5_burst_split_across_a_window_boundary_is_not_flagged
+    description: Documents the fixed-window trade-off (3 edits before :10, 3 after).
+    model: burst_alerts
+    overrides:
+      macros: {is_incremental: false}
+      vars: {event_time_floor: "2000-01-01 00:00:00"}
+    given:
+      - input: source('silver', 'wiki_edits')
+        rows:
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:08:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:09:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:09:30"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:10:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:11:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:12:00"}
+      - input: source('ref', 'watchlist')
+        rows:
+          - {wiki: enwiki, title: Unilever, category: own_brand, owner_team: corporate-comms}
+      - input: source('ref', 'alert_rules')
+        rows:
+          - {rule_id: R5, severity: medium, min_edits: 5, window_minutes: 10, enabled: true}
+    expect:
+      rows: []
+
+  - name: r5_bots_count_but_talk_pages_unwatched_pages_and_logs_do_not
+    model: burst_alerts
+    overrides:
+      macros: {is_incremental: false}
+      vars: {event_time_floor: "2000-01-01 00:00:00"}
+    given:
+      - input: source('silver', 'wiki_edits')
+        rows:
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, is_bot: true, event_ts: "2026-10-03 12:10:01"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, is_bot: true, event_ts: "2026-10-03 12:11:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, is_bot: false, event_ts: "2026-10-03 12:12:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, is_bot: false, event_ts: "2026-10-03 12:13:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 1, edit_type: edit, is_bot: false, event_ts: "2026-10-03 12:14:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: log, is_bot: false, event_ts: "2026-10-03 12:15:00"}
+          - {wiki: enwiki, title: Some Unwatched Page, namespace: 0, edit_type: edit, is_bot: false, event_ts: "2026-10-03 12:16:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: new, is_bot: false, event_ts: "2026-10-03 12:19:59"}
+      - input: source('ref', 'watchlist')
+        rows:
+          - {wiki: enwiki, title: Unilever, category: own_brand, owner_team: corporate-comms}
+      - input: source('ref', 'alert_rules')
+        rows:
+          - {rule_id: R5, severity: medium, min_edits: 5, window_minutes: 10, enabled: true}
+    expect:
+      rows:
+        - {alert_id: a3c9d1012aa510aca05068fb01e29f43b46cc848a213333989a1cb3a051dc638, edits: 5}
+
+  - name: r5_disabled_rule_raises_nothing
+    model: burst_alerts
+    overrides:
+      macros: {is_incremental: false}
+      vars: {event_time_floor: "2000-01-01 00:00:00"}
+    given:
+      - input: source('silver', 'wiki_edits')
+        rows:
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:01:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:02:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:03:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:04:00"}
+          - {wiki: enwiki, title: Unilever, namespace: 0, edit_type: edit, event_ts: "2026-10-03 12:05:00"}
+      - input: source('ref', 'watchlist')
+        rows:
+          - {wiki: enwiki, title: Unilever, category: own_brand, owner_team: corporate-comms}
+      - input: source('ref', 'alert_rules')
+        rows:
+          - {rule_id: R5, severity: medium, min_edits: 5, window_minutes: 10, enabled: false}
+    expect:
+      rows: []

@@ -1,0 +1,44 @@
+name: wikiwatch
+version: "1.0.0"
+config-version: 2
+profile: wikiwatch
+
+flags:
+  # Validate TLS certificates whenever a connection uses HTTPS (Athena); local Trino is HTTP.
+  require_certificate_validation: true
+  # No anonymous usage events to dbt Labs.
+  send_anonymous_usage_stats: false
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+target-path: target
+clean-targets: [target, dbt_packages, logs]
+
+vars:
+  # Incremental runs recompute this many hours of event time (rounded down to the model's
+  # grain) so late events and merge updates are picked up. Older late events need a
+  # --full-refresh or a run with a larger value.
+  lookback_hours: 6
+  # First run / --full-refresh: how far back to read Silver (keeps Athena scans bounded).
+  initial_lookback_days: 7
+  # Silver and alert data tests only look at this many recent days (partition-pruned).
+  test_window_days: 2
+  # The reconciliation test ignores the most recent minutes: alerts may still be in flight.
+  in_flight_minutes: 15
+  # Unit tests pin the event-time floor so fixed fixture dates never age out.
+  event_time_floor: null
+
+seeds:
+  wikiwatch:
+    # The CSVs live here, but the Spark loader is the only writer of ref.* (ADR 0006).
+    +enabled: false
+
+models:
+  wikiwatch:
+    gold:
+      +schema: gold
+      +materialized: incremental
+      +incremental_strategy: merge
+      +on_schema_change: fail

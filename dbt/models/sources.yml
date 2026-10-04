@@ -1,0 +1,64 @@
+# Data tests only scan the last test_window_days (partition-pruned). dbt does not allow
+# custom macros in a test's where config, so the bound is built from run_started_at here.
+version: 2
+
+sources:
+  - name: silver
+    description: Written by the Spark streaming app (insert-only MERGE on meta_id).
+    tables:
+      - name: wiki_edits
+        description: One row per unique Wikimedia event, typed, partitioned by hours(event_ts).
+        columns:
+          - name: meta_id
+            data_tests:
+              - unique:
+                  config: {where: "event_ts >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+              - not_null:
+                  config: {where: "event_ts >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+          - name: editor_type
+            data_tests:
+              - accepted_values:
+                  arguments: {values: [registered, unregistered, bot]}
+                  config: {where: "event_ts >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+
+  - name: gold_stream
+    description: Gold tables written by the Spark streaming app, not by dbt.
+    schema: gold
+    tables:
+      - name: watched_page_alerts
+        description: Per-edit alerts R1 to R4 (insert-only MERGE on alert_id).
+        columns:
+          - name: alert_id
+            data_tests:
+              - unique:
+                  config: {where: "event_ts >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+              - not_null:
+                  config: {where: "event_ts >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+          - name: severity
+            data_tests:
+              - accepted_values:
+                  arguments: {values: [high, medium, low]}
+                  config: {where: "event_ts >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+          - name: rule_id
+            data_tests:
+              - accepted_values:
+                  arguments: {values: [R1, R2, R3, R4]}
+                  config: {where: "event_ts >= timestamp '{{ (run_started_at - modules.datetime.timedelta(days=var(\"test_window_days\"))).strftime(\"%Y-%m-%d %H:%M:%S\") }}'"}
+      - name: edits_per_min
+        description: Real-time 1-minute windows (2-minute watermark); misses late events.
+
+  - name: ref
+    description: >
+      Reference data from the CSVs in dbt/seeds/, written only by the Spark loader
+      (make load-ref, ADR 0006).
+    tables:
+      - name: watchlist
+        columns:
+          - name: category
+            data_tests:
+              - accepted_values:
+                  arguments: {values: [own_brand, product, competitor]}
+      - name: alert_rules
+        columns:
+          - name: rule_id
+            data_tests: [unique, not_null]
