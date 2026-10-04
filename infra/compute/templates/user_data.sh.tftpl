@@ -1,0 +1,71 @@
+#!/bin/bash
+# WikiWatch session boot script, rendered by Terraform (infra/compute/instance.tf).
+# It holds no secrets: those are read from SSM at boot and written only to a root-only
+# env file. Output goes to a local log (no CloudWatch shipping); values are never echoed.
+set -euo pipefail
+exec >>/var/log/wikiwatch-boot.log 2>&1
+echo "boot started $(date -u +%FT%TZ)"
+
+# 1. Arm the self-shutdown first, so even a failed boot stops the meter. The instance's
+#    shutdown behavior is "terminate", so this also deletes the disk.
+shutdown -h +${shutdown_minutes} "WikiWatch session limit reached"
+
+# 2. Docker from Docker's apt repository, with the signing key checked by fingerprint.
+#    Container logs are rotated on local disk.
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -q
+apt-get install -y -q ca-certificates curl gnupg git make
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /tmp/docker.asc
+gpg --show-keys --with-colons /tmp/docker.asc \
+  | grep -q '^fpr:::::::::9DC858229FC7DD38854AE2D88D81803C0EBFCD88:$'
+gpg --dearmor -o /etc/apt/keyrings/docker.gpg /tmp/docker.asc
+echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu noble stable" \
+  > /etc/apt/sources.list.d/docker.list
+install -m 0755 -d /etc/docker
+cat > /etc/docker/daemon.json <<'JSON'
+{"log-driver": "local", "log-opts": {"max-size": "20m", "max-file": "5"}}
+JSON
+apt-get update -q
+apt-get install -y -q docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+systemctl enable --now docker
+
+# 3. The repository at the requested release tag.
+git clone --quiet --depth 1 --branch "${repo_tag}" "https://github.com/${github_repo}.git" /opt/wikiwatch
+cd /opt/wikiwatch
+
+# 4. The env file: non-secret settings from Terraform, then every /wikiwatch/env/<NAME>
+#    parameter as NAME=value. Root-only; nothing is printed. The S3 key placeholders only
+#    satisfy SeaweedFS's required variables in docker-compose.yml; SeaweedFS never starts
+#    here and docker-compose.aws.yml removes the key variables from Spark and the producer.
+umask 077
+cat > .env.aws <<'ENV'
+CATALOG_TYPE=glue
+CATALOG_URI=
+WAREHOUSE_BUCKET=${lake_bucket}
+AWS_REGION=${aws_region}
+S3_ENDPOINT=
+S3_ACCESS_KEY=unused-on-aws
+S3_SECRET_KEY=unused-on-aws
+STREAM_TRIGGER=1 minute
+SPARK_MEM_LIMIT=${spark_mem_limit}
+SPARK_DRIVER_MEMORY=${spark_driver_memory}
+DBT_TARGET=aws
+ATHENA_WORKGROUP=${athena_workgroup}
+ATHENA_S3_STAGING_DIR=s3://${lake_bucket}/athena-results/
+ENV
+docker run --rm -e AWS_REGION="${aws_region}" amazon/aws-cli:2.37.9 \
+  ssm get-parameters-by-path --path /wikiwatch/env/ --with-decryption \
+  --query 'Parameters[].[Name,Value]' --output text \
+  | awk -F '\t' '{ n = $1; sub(/^.*\//, "", n); print n "=" $2 }' >> .env.aws
+
+for name in POSTGRES_PASSWORD CATALOG_DB_PASSWORD AIRFLOW_DB_PASSWORD AIRFLOW_FERNET_KEY \
+  AIRFLOW_JWT_SECRET AIRFLOW_API_SECRET_KEY WIKIWATCH_USER_AGENT; do
+  grep -q "^$name=." .env.aws || { echo "missing SSM parameter /wikiwatch/env/$name"; exit 1; }
+done
+
+# 5. Start the core services with the cloud overlay (S3 + Glue, no SeaweedFS, REST catalog
+#    or Trino). The producer is started by hand over SSM with `make produce MODE=...`,
+#    exactly as on the laptop, because picking the wrong mode could skip events.
+make up ENV_FILE=.env.aws
+echo "boot finished $(date -u +%FT%TZ)"

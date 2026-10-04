@@ -1,0 +1,89 @@
+# Terraform checks on pull requests that touch infra/. The static job needs no AWS access.
+# The plan job uses the read-only plan role through GitHub OIDC, so it can run only after
+# the one-time manual setup (docs/first-apply-checklist.md), which sets TF_PLAN_ENABLED.
+# Plan output never reaches the log: only addresses and actions are printed.
+name: terraform-plan
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - "scripts/tf_plan_summary.py"
+      - ".github/workflows/terraform-plan.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-plan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_IN_AUTOMATION: "1"
+  TERRAFORM_VERSION: "1.16.4"
+  TFLINT_VERSION: "v0.64.0"
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+      - name: terraform fmt
+        run: terraform fmt -check -recursive infra
+      - name: terraform validate (no backend, no AWS)
+        run: make tf-validate
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }} # plugin download rate limit only
+        run: |
+          tflint --chdir=infra --init --config="$PWD/infra/.tflint.hcl"
+          tflint --chdir=infra --recursive --config="$PWD/infra/.tflint.hcl"
+
+  plan:
+    needs: static
+    # Fork PRs never get AWS credentials (and GitHub withholds their OIDC token anyway).
+    if: vars.TF_PLAN_ENABLED == 'true' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [bootstrap, foundation, compute]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
+          aws-region: us-east-1
+          mask-aws-account-id: true
+      - name: terraform plan (summary only)
+        working-directory: infra/${{ matrix.stack }}
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+          TF_VAR_vercel_team_slug: ${{ vars.VERCEL_TEAM_SLUG }}
+          # Any valid tag: the plan shows what a session would create.
+          TF_VAR_repo_tag: v0.0.0
+        run: |
+          terraform init -input=false -backend-config="bucket=$TF_STATE_BUCKET" > /dev/null
+          # -lock=false: the plan role is read-only and cannot write the lock file.
+          terraform plan -input=false -lock=false -no-color -out=tfplan > /dev/null
+          terraform show -json tfplan > "$RUNNER_TEMP/plan.json"
+          python3 "$GITHUB_WORKSPACE/scripts/tf_plan_summary.py" "$RUNNER_TEMP/plan.json"
+          rm -f "$RUNNER_TEMP/plan.json" tfplan
