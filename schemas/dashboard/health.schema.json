@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wikiwatch.example/schemas/dashboard/health.schema.json",
+  "title": "dashboard/v1/health.json",
+  "description": "Pipeline health page, rewritten every 5 minutes by freshness_monitor. Its generated_at is the pipeline heartbeat: older than 15 minutes means the pipeline is offline.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "freshness",
+    "funnel",
+    "streaming",
+    "detection_seconds",
+    "lag"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bronze",
+        "silver",
+        "gold"
+      ],
+      "properties": {
+        "bronze": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "silver": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "gold": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "Z$"
+        }
+      }
+    },
+    "funnel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "received",
+        "bronze",
+        "silver_unique",
+        "dlq"
+      ],
+      "properties": {
+        "received": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bronze": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "silver_unique": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "dlq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "streaming": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "query",
+          "batches",
+          "input_rows_per_second",
+          "batch_duration_ms_p50",
+          "batch_duration_ms_max"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "batches": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "input_rows_per_second": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "batch_duration_ms_p50": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "batch_duration_ms_max": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "detection_seconds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "samples",
+        "p50",
+        "p95"
+      ],
+      "properties": {
+        "samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "p50": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p95": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "lag": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "partition",
+          "latest_offset",
+          "processed_offset",
+          "lag"
+        ],
+        "properties": {
+          "partition": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latest_offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "processed_offset": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "lag": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

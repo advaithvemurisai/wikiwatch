@@ -5,7 +5,7 @@ description = "Real-time brand page monitoring on a streaming lakehouse"
 requires-python = ">=3.13,<3.14"
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "streaming/tests", "producer/tests"]
+testpaths = ["tests", "streaming/tests", "producer/tests", "orchestration/tests"]
 pythonpath = [".", "producer/src", "producer/tests"]
 addopts = "-q"
 
@@ -25,4 +25,4 @@ select = ["E", "F", "I", "B", "UP", "S"]
 "scripts/smoke_trino.py" = ["S608"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["wikiwatch_producer", "streaming", "conftest"]
+known-first-party = ["wikiwatch_producer", "streaming", "orchestration", "conftest"]

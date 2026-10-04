@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wikiwatch.example/schemas/dashboard/baseline.schema.json",
+  "title": "dashboard/v1/baseline.json",
+  "description": "Baseline page: platform edits per minute (real-time vs final), hourly bot share, and watched-page activity against each page's own average per recorded hour.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "edits_per_min",
+    "bot_share_hourly",
+    "recorded_hours",
+    "page_activity",
+    "page_averages"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "edits_per_min": {
+      "type": "array",
+      "maxItems": 400,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "minute",
+          "realtime_edits",
+          "final_edits"
+        ],
+        "properties": {
+          "minute": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "realtime_edits": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "final_edits": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "bot_share_hourly": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hour",
+          "edits",
+          "bot_edits",
+          "bot_share"
+        ],
+        "properties": {
+          "hour": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "edits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bot_edits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bot_share": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "recorded_hours": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "Z$"
+      }
+    },
+    "page_activity": {
+      "type": "array",
+      "maxItems": 3000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "category",
+          "hour",
+          "edits"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "own_brand",
+              "product",
+              "competitor"
+            ]
+          },
+          "hour": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "edits": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "page_averages": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "category",
+          "total_edits",
+          "avg_edits_per_recorded_hour"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "own_brand",
+              "product",
+              "competitor"
+            ]
+          },
+          "total_edits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "avg_edits_per_recorded_hour": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}
