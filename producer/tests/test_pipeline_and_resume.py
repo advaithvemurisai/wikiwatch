@@ -97,6 +97,31 @@ def test_id_is_never_saved_when_delivery_failed(validator):
     assert store.saves == []
 
 
+def test_storage_outage_does_not_stop_the_producer(validator):
+    """A failed save keeps the old position and retries at the next checkpoint."""
+
+    class FlakyStore(FakeStore):
+        def __init__(self):
+            super().__init__()
+            self.fail_next = True
+
+        def save(self, last_event_id):
+            if self.fail_next:
+                self.fail_next = False
+                raise ConnectionError("object storage restarting")
+            super().save(last_event_id)
+
+    store, logs = FlakyStore(), []
+    pipeline = Pipeline(validator, FakePublisher(), store, log=logs.append)
+    pipeline.handle(sse(make_event(), "pos-1"))
+    pipeline.checkpoint()  # fails: logged, not raised
+    assert store.saves == [] and pipeline.saved_event_id is None
+    assert pipeline.counters.save_failures == 1
+    assert logs[-1] == {"msg": "checkpoint_save_failed", "error": "ConnectionError"}
+    pipeline.checkpoint()  # storage is back
+    assert store.saves == ["pos-1"]
+
+
 def test_unchanged_position_is_not_rewritten(parts):
     pipeline, _, store, *_ = parts
     pipeline.handle(sse(make_event(), "pos-1"))

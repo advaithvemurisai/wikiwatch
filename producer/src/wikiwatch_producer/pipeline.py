@@ -47,6 +47,7 @@ class Counters:
     canary: int = 0
     reconnects: int = 0
     checkpoints: int = 0
+    save_failures: int = 0
 
 
 class Pipeline:
@@ -133,7 +134,15 @@ class Pipeline:
                 f"{self.publisher.failed} failed, {remaining} unacknowledged; not checkpointing"
             )
         if self.last_event_id and self.last_event_id != self.saved_event_id:
-            self.store.save(self.last_event_id)
+            try:
+                self.store.save(self.last_event_id)
+            except Exception as exc:  # noqa: BLE001 - any storage failure is handled the same
+                # Safe to continue: the previously saved position is still valid, so a crash
+                # now would only replay more events (absorbed by Silver's MERGE). The next
+                # checkpoint retries. Delivery failures above stay fatal; this does not.
+                self.counters.save_failures += 1
+                self.log({"msg": "checkpoint_save_failed", "error": type(exc).__name__})
+                return
             self.saved_event_id = self.last_event_id
             self.counters.checkpoints += 1
 
