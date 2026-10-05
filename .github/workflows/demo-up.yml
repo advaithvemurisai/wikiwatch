@@ -20,6 +20,10 @@ on:
         description: Soak test (on-demand, 48-hour limit, nightly-destroy skips it)
         type: boolean
         default: false
+      availability_zone:
+        description: Zone to use, for example us-east-1b (empty = the default zone; set one to retry after a capacity shortage)
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -36,7 +40,7 @@ jobs:
   up:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write
@@ -47,9 +51,12 @@ jobs:
           REPO_TAG: ${{ inputs.repo_tag }}
           MARKET: ${{ inputs.market }}
           SOAK: ${{ inputs.soak }}
+          AZ: ${{ inputs.availability_zone }}
         run: |
           [[ "$REPO_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*$ ]] \
             || { echo "repo_tag must look like v0.7.0"; exit 1; }
+          [[ -z "$AZ" || "$AZ" =~ ^us-east-1[a-f]$ ]] \
+            || { echo "availability_zone must be empty or like us-east-1b"; exit 1; }
           git ls-remote --exit-code --tags origin "refs/tags/$REPO_TAG" > /dev/null \
             || { echo "tag $REPO_TAG does not exist"; exit 1; }
           if [[ "$SOAK" == "true" ]]; then MARKET=on-demand; fi
@@ -57,6 +64,7 @@ jobs:
             echo "TF_VAR_repo_tag=$REPO_TAG"
             echo "TF_VAR_market=$MARKET"
             echo "TF_VAR_soak_mode=$SOAK"
+            echo "TF_VAR_availability_zone=$AZ"
           } >> "$GITHUB_ENV"
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
@@ -81,8 +89,17 @@ jobs:
       - name: Apply
         working-directory: infra/compute
         run: |
-          terraform apply -input=false -no-color tfplan > /dev/null
-          rm -f tfplan
+          # Terraform's output stays out of the log (ARNs); on failure only the masked
+          # Error: lines are printed. The INT timeout lets Terraform stop cleanly, save
+          # its state and release the lock before the job's own time limit.
+          if ! timeout --signal=INT --kill-after=3m 15m \
+              terraform apply -input=false -no-color tfplan > "$RUNNER_TEMP/apply.log" 2>&1; then
+            python3 "$GITHUB_WORKSPACE/scripts/tf_errors.py" "$RUNNER_TEMP/apply.log"
+            rm -f "$RUNNER_TEMP/apply.log" tfplan
+            echo "Apply failed. Anything already created is in the state: run demo-down to remove it."
+            exit 1
+          fi
+          rm -f "$RUNNER_TEMP/apply.log" tfplan
           echo "Session instance: $(terraform output -raw instance_id)"
           echo "Boot takes about 10 minutes. Connect with SSM Session Manager (no SSH)."
       # Set only after a successful apply, so a failed apply never shields leftovers.

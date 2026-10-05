@@ -30,6 +30,11 @@ runs:
       shell: bash
       working-directory: infra/compute
       run: |
-        terraform apply -input=false -no-color destroy.tfplan > /dev/null
-        rm -f destroy.tfplan
+        if ! timeout --signal=INT --kill-after=3m 20m \
+            terraform apply -input=false -no-color destroy.tfplan > "$RUNNER_TEMP/destroy.log" 2>&1; then
+          python3 "$GITHUB_WORKSPACE/scripts/tf_errors.py" "$RUNNER_TEMP/destroy.log"
+          rm -f "$RUNNER_TEMP/destroy.log" destroy.tfplan
+          exit 1
+        fi
+        rm -f "$RUNNER_TEMP/destroy.log" destroy.tfplan
         echo "Compute stack destroyed."

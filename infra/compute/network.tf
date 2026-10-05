@@ -6,6 +6,14 @@ locals {
   vpc_cidr    = "10.42.0.0/16"
   subnet_cidr = "10.42.1.0/24"
   any_ipv4    = "0.0.0.0/0"
+
+  # The first zone that offers the instance type, unless demo-up asks for another one
+  # (to retry after a capacity shortage in that zone).
+  session_az = (
+    var.availability_zone != ""
+    ? var.availability_zone
+    : sort(data.aws_ec2_instance_type_offerings.session.locations)[0]
+  )
 }
 
 # Pick an availability zone that actually offers the instance type.
@@ -35,11 +43,18 @@ resource "aws_internet_gateway" "session" {
 resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.session.id
   cidr_block              = local.subnet_cidr
-  availability_zone       = sort(data.aws_ec2_instance_type_offerings.session.locations)[0]
+  availability_zone       = local.session_az
   map_public_ip_on_launch = true
 
   tags = {
     Name = "wikiwatch-session-public"
+  }
+
+  lifecycle {
+    precondition {
+      condition     = contains(data.aws_ec2_instance_type_offerings.session.locations, local.session_az)
+      error_message = "The chosen availability_zone does not offer the session instance type."
+    }
   }
 }
 
