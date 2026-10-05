@@ -187,6 +187,11 @@ def main() -> int:
     parser.add_argument(
         "--no-build", action="store_true", help="use images already built (CI builds with cache)"
     )
+    parser.add_argument(
+        "--write-web-fixtures",
+        action="store_true",
+        help="also write the exported snapshots to web/fixtures/ (to refresh them)",
+    )
     args = parser.parse_args()
 
     if dev_stack_running():
@@ -271,6 +276,10 @@ def main() -> int:
         failures = assertions(expected, phase1, phase2)
         if dbt_run.returncode:
             failures.append("dbt build failed (see the dbt output above for the failing test)")
+        log("dashboard export, health and partition pruning (Task 8)")
+        from tests.e2e.dashboard_checks import run_dashboard_checks
+
+        failures.extend(run_dashboard_checks(ENV_FILE, expected, args.write_web_fixtures))
         lake = run(PY, "scripts/check_lake.py", check=False)
         if lake.returncode:
             failures.append("check_lake.py failed (Bronze gaps or Silver completeness)")

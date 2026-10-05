@@ -1,0 +1,468 @@
+{
+  "bot_share_hourly": [
+    {
+      "bot_edits": 1149,
+      "bot_share": 0.5057,
+      "edits": 2272,
+      "hour": "2026-10-04T02:00:00Z"
+    }
+  ],
+  "edits_per_min": [
+    {
+      "final_edits": 9,
+      "minute": "2026-10-04T02:02:00Z",
+      "realtime_edits": null
+    },
+    {
+      "final_edits": 727,
+      "minute": "2026-10-04T02:12:00Z",
+      "realtime_edits": 727
+    },
+    {
+      "final_edits": 738,
+      "minute": "2026-10-04T02:13:00Z",
+      "realtime_edits": 738
+    },
+    {
+      "final_edits": 709,
+      "minute": "2026-10-04T02:14:00Z",
+      "realtime_edits": 709
+    },
+    {
+      "final_edits": 79,
+      "minute": "2026-10-04T02:15:00Z",
+      "realtime_edits": 79
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:21:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:22:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:23:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:24:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:25:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:31:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:32:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:33:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:34:00Z",
+      "realtime_edits": 1
+    },
+    {
+      "final_edits": 1,
+      "minute": "2026-10-04T02:45:00Z",
+      "realtime_edits": null
+    }
+  ],
+  "generated_at": "2026-10-04T02:46:00Z",
+  "page_activity": [
+    {
+      "category": "product",
+      "edits": 9,
+      "hour": "2026-10-04T02:00:00Z",
+      "title": "Marmite"
+    },
+    {
+      "category": "product",
+      "edits": 1,
+      "hour": "2026-10-04T02:00:00Z",
+      "title": "Ben & Jerry's"
+    }
+  ],
+  "page_averages": [
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Axe (brand)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Beiersdorf",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 1.0,
+      "category": "product",
+      "title": "Ben & Jerry's",
+      "total_edits": 1
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Cadbury",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Church & Dwight",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Clorox",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Coca-Cola",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Colgate (toothpaste)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Colgate-Palmolive",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Crest (toothpaste)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Danone",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Dettol",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Domestos",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Dove (Unilever brand)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Durex",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Est\u00e9e Lauder Companies",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Garnier",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Gatorade",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "General Mills",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Gillette",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Head & Shoulders",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Hellmann's and Best Foods",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Henkel",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Huggies",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Kenvue",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Kimberly-Clark",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "KitKat",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Kleenex",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Knorr (brand)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Kraft Heinz",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "L'Or\u00e9al",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Lay's",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Lifebuoy (soap)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Listerine",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Lux (soap)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Maggi",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 9.0,
+      "category": "product",
+      "title": "Marmite",
+      "total_edits": 9
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Maybelline New York",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Mondelez International",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Nescaf\u00e9",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Nespresso",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Nestl\u00e9",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Neutrogena",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Nivea",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Oral-B",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Oreo",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Pampers",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Pepsi",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "PepsiCo",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Pond's",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Procter & Gamble",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Reckitt",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Rexona",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Sunsilk",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Surf (detergent)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "TRESemm\u00e9",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "The Coca-Cola Company",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "competitor",
+      "title": "Tide (brand)",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "own_brand",
+      "title": "Unilever",
+      "total_edits": 0
+    },
+    {
+      "avg_edits_per_recorded_hour": 0.0,
+      "category": "product",
+      "title": "Vaseline",
+      "total_edits": 0
+    }
+  ],
+  "recorded_hours": [
+    "2026-10-04T02:00:00Z"
+  ],
+  "schema_version": 1
+}

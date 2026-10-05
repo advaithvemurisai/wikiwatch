@@ -1,0 +1,371 @@
+/* Tokens: the dataviz reference palette (light and dark steps validated separately). */
+:root {
+  --surface: #fcfcfb;
+  --surface-raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-secondary: #52514e;
+  --ink-muted: #6b6a65;
+  --gridline: #e1e0d9;
+  --border: #e1e0d9;
+  --wash: #f2f1ec;
+  --accent: #2a78d6;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --gap-fill: #898781;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --banner-bg: #fff4dc;
+  --banner-ink: #5c3c00;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #1a1a19;
+    --surface-raised: #222220;
+    --ink: #ffffff;
+    --ink-secondary: #c3c2b7;
+    --ink-muted: #9a998f;
+    --gridline: #2c2c2a;
+    --border: #34342f;
+    --wash: #262624;
+    --accent: #3987e5;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --gap-fill: #898781;
+    --banner-bg: #3a2c0c;
+    --banner-ink: #ffe3a3;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --surface: #1a1a19;
+  --surface-raised: #222220;
+  --ink: #ffffff;
+  --ink-secondary: #c3c2b7;
+  --ink-muted: #9a998f;
+  --gridline: #2c2c2a;
+  --border: #34342f;
+  --wash: #262624;
+  --accent: #3987e5;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --gap-fill: #898781;
+  --banner-bg: #3a2c0c;
+  --banner-ink: #ffe3a3;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: 650;
+}
+
+h2 {
+  font-size: 1.1rem;
+  font-weight: 620;
+}
+
+.main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.page-header {
+  margin-bottom: 24px;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  color: var(--ink-secondary);
+  max-width: 70ch;
+}
+
+.section {
+  margin-top: 32px;
+}
+
+.section > h2 {
+  margin-bottom: 4px;
+}
+
+.section-note {
+  margin: 0 0 12px;
+  color: var(--ink-secondary);
+  font-size: 0.9rem;
+}
+
+.card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.muted {
+  color: var(--ink-muted);
+}
+
+.secondary {
+  color: var(--ink-secondary);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+/* Tables: the always-available view of every value. */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gridline);
+  vertical-align: top;
+}
+
+th {
+  font-weight: 600;
+  color: var(--ink-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 24px 16px;
+  color: var(--ink-secondary);
+  text-align: center;
+}
+
+/* Stat tiles */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.tile-label {
+  font-size: 0.85rem;
+  color: var(--ink-secondary);
+}
+
+.tile-value {
+  font-size: 1.6rem;
+  font-weight: 620;
+  margin-top: 2px;
+}
+
+.tile-detail {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+/* Status: always an icon plus a label, never color alone. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.status svg {
+  flex: none;
+}
+
+/* Filters: one row, above everything they scope. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 16px;
+}
+
+.filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--ink-secondary);
+  font-weight: 560;
+}
+
+select {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  min-width: 160px;
+  max-width: 100%;
+}
+
+select:focus-visible,
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button {
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--ink);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+/* Charts */
+.chart {
+  width: 100%;
+  height: 300px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+  color: var(--ink-secondary);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key-line {
+  display: inline-block;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
+.key-rect {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.tooltip {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+.tooltip-title {
+  color: var(--ink-secondary);
+  margin-bottom: 4px;
+}
+
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tooltip-row strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.recharts-surface:focus {
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

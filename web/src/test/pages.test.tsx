@@ -1,0 +1,93 @@
+// Pages render real fixture data, and a snapshot with a wrong schema_version shows a
+// friendly message instead of crashing the page.
+import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { SnapshotName, SnapshotResult } from "@/lib/types";
+import { parseSnapshot } from "@/lib/validate";
+
+import { fixtureText } from "./fixtures";
+
+const overrides: Partial<Record<SnapshotName, string>> = {};
+
+vi.mock("@/lib/snapshots", () => ({
+  loadSnapshot: async <N extends SnapshotName>(name: N): Promise<SnapshotResult<N>> =>
+    parseSnapshot(name, overrides[name] ?? fixtureText(name)),
+  renderTime: () => Date.parse("2026-10-04T21:00:00Z"),
+}));
+
+vi.mock("next/navigation", () => ({ usePathname: () => "/" }));
+
+const { default: AlertsPage } = await import("@/app/page");
+const { default: BaselinePage } = await import("@/app/baseline/page");
+const { default: HealthPage } = await import("@/app/health/page");
+const { OfflineBanner } = await import("@/components/OfflineBanner");
+
+function wrongVersion(name: SnapshotName): string {
+  return JSON.stringify({ ...JSON.parse(fixtureText(name)), schema_version: 2 });
+}
+
+beforeEach(() => {
+  for (const key of Object.keys(overrides)) delete overrides[key as SnapshotName];
+});
+afterEach(() => vi.restoreAllMocks());
+
+describe("pages on fixtures", () => {
+  it("Alerts lists the fixture alerts, high severity first", async () => {
+    render(await AlertsPage());
+    const rows = screen.getAllByRole("row");
+    expect(screen.getByRole("heading", { name: /Open alerts/ })).toHaveTextContent("(5)");
+    expect(rows[1]).toHaveTextContent("High");
+    expect(screen.getAllByText("Ben & Jerry's").length).toBeGreaterThan(0);
+  });
+
+  it("Baseline shows its three sections", async () => {
+    render(await BaselinePage());
+    expect(screen.getByRole("heading", { name: "Platform edits per minute" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Bot share by hour" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Watched page/ })).toHaveValue("Marmite");
+  });
+
+  it("Pipeline health shows the funnel and the dbt run", async () => {
+    render(await HealthPage());
+    expect(screen.getByText("Received by Redpanda").parentElement).toHaveTextContent("5,085");
+    expect(screen.getByText("Succeeded")).toBeInTheDocument();
+  });
+});
+
+describe("a snapshot with a wrong schema_version", () => {
+  it.each([
+    ["alerts", AlertsPage, "Alerts unavailable"],
+    ["baseline", BaselinePage, "Baseline unavailable"],
+    ["health", HealthPage, "Pipeline health unavailable"],
+    ["meta", HealthPage, "dbt run status unavailable"],
+  ] as const)("%s shows a friendly error", async (name, Page, heading) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    overrides[name] = wrongVersion(name);
+    render(await Page());
+    expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    expect(screen.getByText(/format this version of the site does not understand/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/schema_version|stack|Error:/);
+  });
+});
+
+describe("offline banner", () => {
+  const now = Date.parse("2026-10-04T21:00:00Z");
+
+  it("is hidden while health.json is under 15 minutes old", () => {
+    const { container } = render(<OfflineBanner heartbeat="2026-10-04T20:50:00Z" now={now} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("says since when the pipeline is offline after 15 minutes", () => {
+    render(<OfflineBanner heartbeat="2026-10-04T20:44:00Z" now={now} />);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Pipeline offline since 4 Oct 2026, 20:44 UTC, showing last session.",
+    );
+  });
+
+  it("says the status is unknown without a heartbeat", () => {
+    render(<OfflineBanner heartbeat={null} now={now} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Pipeline status unknown");
+  });
+});

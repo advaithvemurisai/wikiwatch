@@ -94,3 +94,31 @@ def test_producer_settings_match_local_apart_from_credentials():
     for key in ("KAFKA_BOOTSTRAP", "SCHEMA_REGISTRY_URL", "WIKIWATCH_USER_AGENT"):
         assert env[key] == base[key]
     assert "WAREHOUSE_BUCKET" in env["STATE_BUCKET"]
+
+
+def test_cloud_airflow_queries_athena_and_builds_dbt_on_athena():
+    env = merged()["airflow"]["environment"]
+    assert env["QUERY_ENGINE"] == "athena"
+    assert env["DBT_TARGET"] == "aws"
+    assert "ATHENA_WORKGROUP" in env and "ATHENA_S3_STAGING_DIR" in env
+
+
+def test_cloud_airflow_requires_a_login():
+    env = merged()["airflow"]["environment"]
+    assert env["AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_ALL_ADMINS"] == "False"
+    assert env["AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS"] == "admin:admin"
+    command = " ".join(merged()["airflow"]["command"])
+    assert "umask 077" in command and "set -x" not in command  # password file never echoed
+
+
+def test_cloud_airflow_reads_connections_from_ssm():
+    env = merged()["airflow"]["environment"]
+    assert env["AIRFLOW__SECRETS__BACKEND"].endswith("SystemsManagerParameterStoreBackend")
+    assert '"/wikiwatch/airflow/connections"' in env["AIRFLOW__SECRETS__BACKEND_KWARGS"]
+
+
+def test_cloud_airflow_has_no_static_keys_or_local_endpoints():
+    env = merged()["airflow"]["environment"]
+    for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_ENDPOINT", "TRINO_HOST"):
+        assert name not in env, name
+    assert set(merged()["airflow"]["depends_on"]) == {"postgres"}

@@ -140,13 +140,43 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.30.1 git --redact --no-banner .
           docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.30.1 dir --redact --no-banner .
 
-  web:
-    # Activates by itself once web/ exists (Task 8): type check, ESLint, next build and
-    # snapshot validation against schemas/dashboard/.
+  dags:
+    # DAG import check inside the real Airflow image (DAG ids, schedules, catchup,
+    # task order), the same command as make test-dags.
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Skip until the web app exists
-        if: hashFiles('web/package.json') == ''
-        run: echo "web/ has no package.json yet (Task 8); nothing to check."
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build the Airflow image (layer cache in GitHub Actions)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: docker/airflow
+          tags: wikiwatch/airflow:3.3.2-dbt1.12.5
+          load: true
+          cache-from: type=gha,scope=airflow
+          cache-to: type=gha,mode=max,scope=airflow
+      - run: make test-dags
+
+  web:
+    # Next.js app: type check, ESLint, tests (snapshot contract: fixtures validate against
+    # schemas/dashboard/, a wrong schema_version shows a friendly error) and next build.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"

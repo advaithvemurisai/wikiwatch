@@ -1,6 +1,7 @@
 # gitleaks config: default rules plus paths that are git-ignored on purpose.
 # .env.local holds random throwaway local secrets created by `make env-local`; it is
 # git-ignored, and `gitleaks git` would still catch it if it were ever committed.
+# web/.next/ is Next.js build output, including random per-build preview-mode keys.
 [extend]
 useDefault = true
 
@@ -10,5 +11,6 @@ paths = [
   '''(^|/)\.env\.(local|aws|e2e)$''',
   '''(^|/)\.venv/''',
   '''(^|/)node_modules/''',
+  '''(^|/)\.next/''',
   '''(^|/)\.terraform/''',
 ]

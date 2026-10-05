@@ -50,7 +50,8 @@ Pin exact versions in Task 1 and record them here:
 | gitleaks / pre-commit / ruff / sqlfluff / pytest | 8.30.1 / 4.6.2 / 0.16.10 / 4.4.0 / 9.1.1 |
 | Producer image / libs | python:3.13.16-slim; confluent-kafka 2.15.1, httpx 0.28.1, jsonschema 4.26.0, boto3 1.43.108 |
 | dbt-core / dbt-trino / dbt-athena | 1.12.5 / 1.10.6 / 1.11.1 |
-| Node (Task 8) | 24 LTS |
+| Node / Next.js / React / Recharts (Task 8) | 24 LTS / 16.3.8 / 19.3.0 / 3.10.1 |
+| TypeScript / ESLint / vitest / ajv (web) | 6.0.3 / 9.39.5 / 5.0.3 / 8.20.0 |
 
 Measured peak memory per profile (2026-10-03, M1 Air 8 GB, Docker VM 6 GB, `docker stats`
 sampled every second; macOS swap stayed flat at about 4.6 GB and memory pressure stayed
@@ -161,7 +162,9 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | `make lint` | ruff, sqlfluff, terraform fmt, tflint |
 | `make tf-validate` | `terraform init -backend=false` + `validate` for every stack (no AWS access) |
 | `make secrets-check` | gitleaks on the working tree and history |
-| `make web` | Run the Next.js app locally on fixture snapshots |
+| `make web` / `make web-s3` | Run the Next.js app on fixture snapshots / on the snapshots in local SeaweedFS (Node 24) |
+| `make web-check` | Web type check, ESLint, vitest and `next build` (the CI web job) |
+| `make test-dags` | Import-check the Airflow DAGs inside the real Airflow image |
 | `make smoke` | Spark writes an Iceberg table, Trino reads it (needs `make up-dbt`) |
 | `make produce MODE=fresh\|resume` | Start the SSE producer (`fresh` only for the very first run or after long gaps) |
 | `make produce-stop` / `make producer-logs` | Stop the producer gracefully / follow its JSON logs |

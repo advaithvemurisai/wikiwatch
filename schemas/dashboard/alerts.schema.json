@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wikiwatch.example/schemas/dashboard/alerts.schema.json",
+  "title": "dashboard/v1/alerts.json",
+  "description": "Alerts page: last 7 days of alerts (R1 to R5) and the daily digest per watched page. Written by the dbt_gold DAG after each dbt build. No user names or IPs: editor type only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "window_days",
+    "alerts",
+    "digest"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "window_days": {
+      "const": 7
+    },
+    "alerts": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "alert_id",
+          "rule_id",
+          "rule_name",
+          "severity",
+          "wiki",
+          "title",
+          "category",
+          "owner_team",
+          "edit_type",
+          "log_action",
+          "editor_type",
+          "byte_delta",
+          "edits_in_window",
+          "event_ts",
+          "detected_at"
+        ],
+        "properties": {
+          "alert_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "rule_id": {
+            "enum": [
+              "R1",
+              "R2",
+              "R3",
+              "R4",
+              "R5"
+            ]
+          },
+          "rule_name": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "wiki": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "own_brand",
+              "product",
+              "competitor"
+            ]
+          },
+          "owner_team": {
+            "type": "string"
+          },
+          "edit_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "log_action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "editor_type": {
+            "enum": [
+              "registered",
+              "unregistered",
+              "bot",
+              null
+            ]
+          },
+          "byte_delta": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "edits_in_window": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "event_ts": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          },
+          "detected_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "Z$"
+          }
+        }
+      }
+    },
+    "digest": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "digest_date",
+          "wiki",
+          "title",
+          "category",
+          "edits",
+          "log_events",
+          "net_bytes",
+          "registered_edits",
+          "unregistered_edits",
+          "bot_edits",
+          "r1_alerts",
+          "r2_alerts",
+          "r3_alerts",
+          "r4_alerts",
+          "r5_alerts"
+        ],
+        "properties": {
+          "digest_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "wiki": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "own_brand",
+              "product",
+              "competitor"
+            ]
+          },
+          "edits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "log_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "net_bytes": {
+            "type": "integer"
+          },
+          "registered_edits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unregistered_edits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "bot_edits": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "r1_alerts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "r2_alerts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "r3_alerts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "r4_alerts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "r5_alerts": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

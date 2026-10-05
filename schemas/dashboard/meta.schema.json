@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wikiwatch.example/schemas/dashboard/meta.schema.json",
+  "title": "dashboard/v1/meta.json",
+  "description": "Last dbt_gold run: dbt result and the row counts of the snapshots it wrote.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "dbt",
+    "snapshots"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "dbt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "finished_at",
+        "models_ok",
+        "tests_ok",
+        "failures"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "success",
+            "failed",
+            "unknown"
+          ]
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "models_ok": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tests_ok": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failures": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "snapshots": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alerts",
+        "digest",
+        "edits_per_min",
+        "bot_share_hourly",
+        "page_activity"
+      ],
+      "properties": {
+        "alerts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "digest": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "edits_per_min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "bot_share_hourly": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "page_activity": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

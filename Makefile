@@ -12,11 +12,14 @@ STAMP    := $(VENV)/.installed
 ALL_PROFILES := --profile core --profile airflow --profile dbt --profile producer
 TF_STACKS := bootstrap foundation compute
 TFLINT ?= tflint
+# Node 24 LTS: Homebrew's keg-only node@24 if present, else whatever node is on PATH.
+NODE24_BIN ?= /opt/homebrew/opt/node@24/bin
+NODE_PATH := $(if $(wildcard $(NODE24_BIN)/node),PATH="$(NODE24_BIN):$$PATH")
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test dbt-build dbt-docs lint tf-validate secrets-check e2e web check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test test-dags dbt-build dbt-docs lint tf-validate secrets-check e2e web web-s3 web-check check-env
 
 help:
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
+	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
 
 venv: $(STAMP) ## Create .venv with Python 3.13 and the dev tools
 
@@ -84,6 +87,17 @@ test: $(STAMP) ## Unit and contract tests, plus dbt unit tests when Trino is up
 		echo ""; echo "WARNING: dbt unit tests SKIPPED - Trino is not running (start it with: make up-dbt)"; \
 	fi
 
+AIRFLOW_IMAGE := wikiwatch/airflow:3.3.2-dbt1.12.5
+
+test-dags: ## Import-check the Airflow DAGs inside the real Airflow image (no services needed)
+	docker build -q -t $(AIRFLOW_IMAGE) docker/airflow >/dev/null
+	docker run --rm -e AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=sqlite:////tmp/airflow.db \
+		-e AIRFLOW__CORE__LOAD_EXAMPLES=False \
+		-v "$(CURDIR)/airflow/dags:/opt/airflow/dags:ro" \
+		-v "$(CURDIR)/airflow/tests:/opt/wikiwatch/airflow/tests:ro" \
+		-v "$(CURDIR)/orchestration:/opt/wikiwatch/orchestration:ro" \
+		--entrypoint python $(AIRFLOW_IMAGE) /opt/wikiwatch/airflow/tests/check_dag_imports.py
+
 dbt-build: check-env $(STAMP) ## dbt models and all dbt tests on local Trino (needs make up-dbt)
 	$(DBT) build $(DBT_ARGS) --target local
 
@@ -113,5 +127,19 @@ secrets-check: ## gitleaks on the full git history and the working tree
 e2e: $(STAMP) ## End-to-end replay test on a throwaway stack (dev stack must be down)
 	$(PY) tests/e2e/run_e2e.py
 
-web: ## Run the Next.js app on fixture snapshots
-	@echo "make web is added in Task 8"; exit 1
+web: web/node_modules ## Run the Next.js app on fixture snapshots (http://localhost:3000)
+	cd web && $(NODE_PATH) npm run dev
+
+web-s3: check-env web/node_modules ## Run the Next.js app on the snapshots in local SeaweedFS (needs make up)
+	@cd web && $(NODE_PATH) SNAPSHOT_SOURCE=s3 S3_ENDPOINT=http://localhost:8333 \
+		SNAPSHOT_BUCKET="$$(sed -n 's/^WAREHOUSE_BUCKET=//p' ../$(ENV_FILE))" \
+		AWS_ACCESS_KEY_ID="$$(sed -n 's/^S3_ACCESS_KEY=//p' ../$(ENV_FILE))" \
+		AWS_SECRET_ACCESS_KEY="$$(sed -n 's/^S3_SECRET_KEY=//p' ../$(ENV_FILE))" \
+		npm run dev
+
+web-check: web/node_modules ## Web type check, ESLint, tests and production build
+	cd web && $(NODE_PATH) npm run typecheck && $(NODE_PATH) npm run lint && $(NODE_PATH) npm test && $(NODE_PATH) npm run build
+
+web/node_modules: web/package-lock.json
+	cd web && $(NODE_PATH) npm ci --no-audit --no-fund
+	touch web/node_modules

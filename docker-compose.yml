@@ -254,7 +254,9 @@ services:
 
   # ---------------------------------------------------------------- airflow
   airflow:
-    image: apache/airflow:3.3.2-python3.13
+    build:
+      context: docker/airflow
+    image: wikiwatch/airflow:3.3.2-dbt1.12.5
     profiles: [airflow]
     mem_limit: ${AIRFLOW_MEM_LIMIT:-1792m}
     # Local only: one container runs the API server, scheduler, DAG processor and
@@ -270,8 +272,22 @@ services:
       AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?set AIRFLOW_JWT_SECRET in the env file}
       AIRFLOW__API__SECRET_KEY: ${AIRFLOW_API_SECRET_KEY:?set AIRFLOW_API_SECRET_KEY in the env file}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD}@postgres:5432/airflow
+      # What the DAGs need: the query engine, the lake bucket, Redpanda and the dbt target.
+      # Locally dbt_gold also needs Trino (the dbt profile); on EC2 it uses Athena.
+      <<: *s3-client-env
+      QUERY_ENGINE: trino
+      TRINO_HOST: trino
+      TRINO_PORT: "8080"
+      DBT_TARGET: local
+      KAFKA_BOOTSTRAP: redpanda:9092
+      WAREHOUSE_BUCKET: ${WAREHOUSE_BUCKET:-warehouse}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
     volumes:
       - ./airflow/dags:/opt/airflow/dags:ro
+      - ./orchestration:/opt/wikiwatch/orchestration:ro
+      - ./dbt:/opt/wikiwatch/dbt:ro
+      - ./schemas:/opt/wikiwatch/schemas:ro
+      - ./airflow/tests:/opt/wikiwatch/airflow/tests:ro
     ports:
       - "127.0.0.1:8080:8080"
     healthcheck:

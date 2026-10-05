@@ -64,12 +64,14 @@ put CATALOG_DB_PASSWORD "$(rand)"
 put AIRFLOW_DB_PASSWORD "$(rand)"
 put AIRFLOW_JWT_SECRET "$(rand)"
 put AIRFLOW_API_SECRET_KEY "$(rand)"
+put AIRFLOW_ADMIN_PASSWORD "$(rand)"   # Airflow UI login (user: admin); read it later with
+                                       # aws ssm get-parameter --with-decryption, in CloudShell
 put AIRFLOW_FERNET_KEY "$(python3 -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
 put WIKIWATCH_USER_AGENT 'WikiWatch/0.1 (https://github.com/advaithvemurisai/wikiwatch)'
 ```
 
 - [ ] `aws ssm get-parameters-by-path --path /wikiwatch/env/ --query 'Parameters[].Name'`
-      lists all 7 names (names only, no values).
+      lists all 8 names (names only, no values).
 
 ## 4. Foundation
 
@@ -123,10 +125,11 @@ they grant access: only this repository's workflows can assume the roles.
 - [ ] Run **nightly-destroy** once by hand (workflow_dispatch) with a session up, to prove
       the safety net, as the v1 acceptance criteria require.
 
-## Later (Task 8)
+## Vercel (after foundation)
 
-- In Vercel, set `AWS_ROLE_ARN` (the `vercel_role_arn` output) and `AWS_REGION` for the
-  **production** environment only, and enable OIDC federation in team issuer mode.
+- Follow docs/vercel-setup.md: root directory `web`, OIDC federation in team issuer mode,
+  and `SNAPSHOT_SOURCE`, `SNAPSHOT_BUCKET` (the `lake_bucket` output), `AWS_REGION` and
+  `AWS_ROLE_ARN` (the `vercel_role_arn` output) for the **production** environment only.
 
 ## Laptop tools (no AWS access needed)
 
