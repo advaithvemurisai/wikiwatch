@@ -30,6 +30,13 @@ variable "alert_email" {
   description = "Address for budget and Athena alerts."
   type        = string
   sensitive   = true
+
+  # Fail at plan time, not halfway through an apply: SNS and budget actions reject a
+  # malformed address only when the resource is created.
+  validation {
+    condition     = can(regex("^[^[:space:]@\"'<>]+@[^[:space:]@\"'<>]+\\.[A-Za-z]{2,}$", var.alert_email))
+    error_message = "alert_email must be a single email address, with no spaces or quotes."
+  }
 }
 
 variable "budget_alert_thresholds_usd" {
