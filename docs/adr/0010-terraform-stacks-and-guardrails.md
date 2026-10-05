@@ -24,7 +24,9 @@ public or semi-public, so no account ID, IP or secret may show up in any of them
    repository and can read resource configuration and state, but not lake data. It cannot
    write the lock file, so PR plans run with `-lock=false`. The deploy role trusts only
    `main`, can manage only what `compute` creates, can pass only the instance role, and
-   can launch only t4g.xlarge. Fork PRs never get a token.
+   can launch only t4g.xlarge. Fork PRs never get a token. Trust matches GitHub's
+   immutable subject (`repo:owner@owner_id/repo@repo_id:...`), which this repository
+   uses, so a deleted and re-created repository with the same name gets no access.
 4. **Plan output stays out of logs.** Full plan and apply output contains ARNs (with the
    account ID) and network details. Workflows send it to `/dev/null` and print
    `scripts/tf_plan_summary.py` instead (addresses and actions only), which also fails a

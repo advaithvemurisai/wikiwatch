@@ -9,10 +9,21 @@ variable "state_bucket" {
   type        = string
 }
 
-variable "github_repo" {
-  description = "The only GitHub repository whose workflows may assume the CI roles."
+variable "github_oidc_subject" {
+  description = <<-EOT
+    Subject prefix of this repository's GitHub OIDC tokens: the only repository whose
+    workflows may assume the CI roles. The repository uses immutable subjects
+    (owner@owner_id/repo@repo_id), so a deleted and re-created repository with the same
+    name cannot assume them. Check it with:
+    gh api repos/<owner>/<repo>/actions/oidc/customization/sub (sub_claim_prefix).
+  EOT
   type        = string
-  default     = "advaithvemurisai/wikiwatch"
+  default     = "repo:advaithvemurisai@219215219/wikiwatch@1403818521"
+
+  validation {
+    condition     = can(regex("^repo:[^*:]+$", var.github_oidc_subject))
+    error_message = "github_oidc_subject must be a repo:... prefix without wildcards or event suffix."
+  }
 }
 
 variable "vercel_team_slug" {
@@ -30,6 +41,13 @@ variable "alert_email" {
   description = "Address for budget and Athena alerts."
   type        = string
   sensitive   = true
+
+  # Fail at plan time, not halfway through an apply: SNS and budget actions reject a
+  # malformed address only when the resource is created.
+  validation {
+    condition     = can(regex("^[^[:space:]@\"'<>]+@[^[:space:]@\"'<>]+\\.[A-Za-z]{2,}$", var.alert_email))
+    error_message = "alert_email must be a single email address, with no spaces or quotes."
+  }
 }
 
 variable "budget_alert_thresholds_usd" {

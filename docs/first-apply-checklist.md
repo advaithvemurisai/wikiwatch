@@ -28,8 +28,25 @@ cd ~ && curl -fsSLO "https://releases.hashicorp.com/terraform/${TF}/terraform_${
   && curl -fsSLO "https://releases.hashicorp.com/terraform/${TF}/terraform_${TF}_SHA256SUMS"
 sha256sum -c --ignore-missing "terraform_${TF}_SHA256SUMS"   # must print: OK
 mkdir -p ~/bin && unzip -o "terraform_${TF}_linux_${ARCH}.zip" terraform -d ~/bin && terraform version
+rm -f ~/terraform_*.zip ~/terraform_*_SHA256SUMS
 git clone https://github.com/advaithvemurisai/wikiwatch.git ~/wikiwatch
 ```
+
+CloudShell's home directory is capped at 1 GB, and the AWS provider alone is about
+750 MB unpacked. Without a shared cache each stack keeps its own copy and the second
+`terraform init` fails with "no space left on device". Keep one copy outside home:
+
+```bash
+cat >> ~/.bashrc <<'RC'
+export TF_PLUGIN_CACHE_DIR=/tmp/terraform-plugin-cache
+mkdir -p "$TF_PLUGIN_CACHE_DIR"
+RC
+source ~/.bashrc
+```
+
+`/tmp` is emptied when a CloudShell session ends, so in a new session run `terraform init`
+again in a stack before using it (with `-backend-config="bucket=$STATE_BUCKET"` once
+step 2 has moved the state to S3); it downloads the provider once more and changes nothing else.
 
 ## 2. Bootstrap: the state bucket
 
