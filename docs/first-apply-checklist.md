@@ -20,10 +20,10 @@ those roles cannot exist before the first apply (ADR 0010).
 
 ## 1. Terraform in CloudShell
 
-Open CloudShell, then install Terraform 1.16.4 and check its checksum:
+Open CloudShell, then install Terraform 1.16.5 and check its checksum:
 
 ```bash
-TF=1.16.4; ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+TF=1.16.5; ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
 cd ~ && curl -fsSLO "https://releases.hashicorp.com/terraform/${TF}/terraform_${TF}_linux_${ARCH}.zip" \
   && curl -fsSLO "https://releases.hashicorp.com/terraform/${TF}/terraform_${TF}_SHA256SUMS"
 sha256sum -c --ignore-missing "terraform_${TF}_SHA256SUMS"   # must print: OK

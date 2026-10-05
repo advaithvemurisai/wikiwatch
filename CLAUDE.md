@@ -44,7 +44,7 @@ Pin exact versions in Task 1 and record them here:
 | Trino | 483 |
 | Airflow | 3.3.2 (python3.13 image) |
 | Postgres (local catalog + Airflow metadata) / JDBC driver | 18.6 / 42.7.13 |
-| Terraform / AWS provider | 1.16.4 / 6.67.0 |
+| Terraform / AWS provider | 1.16.5 / 6.67.0 |
 | tflint / AWS ruleset | 0.64.0 / 0.49.0 |
 | EC2 session image / AWS CLI image (reads SSM at boot) | Ubuntu 24.04 arm64 (latest from SSM) / amazon/aws-cli:2.37.9 |
 | gitleaks / pre-commit / ruff / sqlfluff / pytest | 8.30.1 / 4.6.2 / 0.16.10 / 4.4.0 / 9.1.1 |

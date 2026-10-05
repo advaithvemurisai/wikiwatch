@@ -2,7 +2,7 @@
 # budget). Applied by hand from CloudShell (docs/first-apply-checklist.md); CI only plans it.
 
 terraform {
-  required_version = "1.16.4"
+  required_version = "1.16.5"
 
   required_providers {
     aws = {
