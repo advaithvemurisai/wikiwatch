@@ -74,6 +74,13 @@ resource "aws_instance" "session" {
     Name = "wikiwatch-session"
   }
 
+  # A capacity shortage (InsufficientInstanceCapacity) is retried until this timeout. It
+  # must end well inside the workflow's time limit, so Terraform fails cleanly, records
+  # the network in its state and releases the lock (demo-down can then remove it).
+  timeouts {
+    create = "10m"
+  }
+
   lifecycle {
     precondition {
       condition     = var.repo_tag != ""

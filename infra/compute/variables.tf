@@ -38,6 +38,17 @@ variable "market" {
   }
 }
 
+variable "availability_zone" {
+  description = "Zone for the session subnet. Empty: the first zone that offers the instance type. Set another one to retry after a capacity shortage."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.availability_zone == "" || can(regex("^[a-z]{2}-[a-z]+-[0-9][a-z]$", var.availability_zone))
+    error_message = "availability_zone must be empty or a zone name like us-east-1b."
+  }
+}
+
 variable "soak_mode" {
   description = "Soak test: self-shutdown after 48 hours instead of 4."
   type        = bool

@@ -71,3 +71,15 @@ public or semi-public, so no account ID, IP or secret may show up in any of them
 - The instance starts only the core services. The producer is started by hand over SSM
   (`make produce MODE=... ENV_FILE=.env.aws`), as on the laptop, because the wrong mode can
   skip events. Airflow on EC2 arrives with Task 8.
+
+## Amendment (2026-10-05): capacity shortages
+
+The first demo-up hit `InsufficientInstanceCapacity` for spot t4g.xlarge in the default
+zone. The AWS provider kept retrying until GitHub killed the job at 20 minutes, before
+Terraform could save its state or release the lock, so the network it had created was
+left untracked and had to be removed by hand. Now the instance has a 10-minute create
+timeout, the apply runs under `timeout --signal=INT` (15 minutes, inside a 30-minute job),
+so Terraform always stops cleanly, and a failed apply prints its masked `Error:` lines
+(`scripts/tf_plan_summary.py`'s counterpart, `scripts/tf_errors.py`). demo-up takes an
+optional `availability_zone` to retry elsewhere. nightly-destroy moved from 06:00 to
+06:17 UTC, because GitHub skipped the on-the-hour schedule that night.

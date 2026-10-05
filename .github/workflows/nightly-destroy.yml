@@ -6,8 +6,9 @@ name: nightly-destroy
 
 on:
   schedule:
-    # 06:00 UTC = 1 a.m. Central Daylight Time (midnight Central Standard Time).
-    - cron: "0 6 * * *"
+    # 06:17 UTC, about 1 a.m. Central time. Off the hour on purpose: GitHub delays or
+    # drops scheduled runs at busy times, and :00 is the busiest.
+    - cron: "17 6 * * *"
   workflow_dispatch: # to verify the safety net once by hand
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
   destroy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: read
       id-token: write

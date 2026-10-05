@@ -184,6 +184,17 @@ def test_instance_guardrails():
     assert "associate_public_ip_address" not in instance
 
 
+def test_capacity_shortage_fails_cleanly_and_can_move_zones():
+    instance = block(stack_text("compute"), 'resource "aws_instance" "session"')
+    assert 'create = "10m"' in instance, "must end before the workflow's apply timeout"
+    subnet = block(stack_text("compute"), 'resource "aws_subnet" "public"')
+    assert "availability_zone       = local.session_az" in subnet
+    assert (
+        "contains(data.aws_ec2_instance_type_offerings.session.locations, local.session_az)"
+        in subnet
+    )
+
+
 def test_session_limit_is_4_hours_or_48_for_soak():
     text = stack_text("compute")
     assert "shutdown_minutes = var.soak_mode ? 48 * 60 : 4 * 60" in text
