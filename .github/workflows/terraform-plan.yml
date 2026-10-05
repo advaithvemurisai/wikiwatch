@@ -20,7 +20,7 @@ concurrency:
 
 env:
   TF_IN_AUTOMATION: "1"
-  TERRAFORM_VERSION: "1.16.4"
+  TERRAFORM_VERSION: "1.16.5"
   TFLINT_VERSION: "v0.64.0"
 
 jobs:

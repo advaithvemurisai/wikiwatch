@@ -36,7 +36,7 @@ def block(text: str, header: str) -> str:
 @pytest.mark.parametrize("stack", STACKS)
 def test_versions_are_pinned_exactly(stack):
     text = stack_text(stack)
-    assert 'required_version = "1.16.4"' in text
+    assert 'required_version = "1.16.5"' in text
     assert re.search(r'version\s*=\s*"\d+\.\d+\.\d+"', text), "AWS provider must be pinned"
     assert (INFRA / stack / ".terraform.lock.hcl").exists(), "commit the provider lock file"
 
