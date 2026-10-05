@@ -139,8 +139,8 @@ resource "aws_iam_openid_connect_provider" "github" {
 # One trust policy per role; `subject` pins the repository and the event or branch.
 data "aws_iam_policy_document" "github_trust" {
   for_each = {
-    plan   = "repo:${var.github_repo}:pull_request"
-    deploy = "repo:${var.github_repo}:ref:refs/heads/main"
+    plan   = "${var.github_oidc_subject}:pull_request"
+    deploy = "${var.github_oidc_subject}:ref:refs/heads/main"
   }
 
   statement {

@@ -9,10 +9,21 @@ variable "state_bucket" {
   type        = string
 }
 
-variable "github_repo" {
-  description = "The only GitHub repository whose workflows may assume the CI roles."
+variable "github_oidc_subject" {
+  description = <<-EOT
+    Subject prefix of this repository's GitHub OIDC tokens: the only repository whose
+    workflows may assume the CI roles. The repository uses immutable subjects
+    (owner@owner_id/repo@repo_id), so a deleted and re-created repository with the same
+    name cannot assume them. Check it with:
+    gh api repos/<owner>/<repo>/actions/oidc/customization/sub (sub_claim_prefix).
+  EOT
   type        = string
-  default     = "advaithvemurisai/wikiwatch"
+  default     = "repo:advaithvemurisai@219215219/wikiwatch@1403818521"
+
+  validation {
+    condition     = can(regex("^repo:[^*:]+$", var.github_oidc_subject))
+    error_message = "github_oidc_subject must be a repo:... prefix without wildcards or event suffix."
+  }
 }
 
 variable "vercel_team_slug" {

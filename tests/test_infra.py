@@ -135,9 +135,10 @@ def test_budget_thresholds_ignore_credits_and_stop_new_launches():
 
 def test_oidc_roles_are_locked_to_the_repository_and_events():
     text = stack_text("foundation")
-    assert 'default     = "advaithvemurisai/wikiwatch"' in text
-    assert 'plan   = "repo:${var.github_repo}:pull_request"' in text
-    assert 'deploy = "repo:${var.github_repo}:ref:refs/heads/main"' in text
+    # Immutable subject (owner@id/repo@id), as GitHub sends it for this repository.
+    assert 'default     = "repo:advaithvemurisai@219215219/wikiwatch@1403818521"' in text
+    assert 'plan   = "${var.github_oidc_subject}:pull_request"' in text
+    assert 'deploy = "${var.github_oidc_subject}:ref:refs/heads/main"' in text
     assert "*" not in "".join(re.findall(r'"repo:[^"]*"', text)), "no wildcards in subjects"
     assert ":environment:production" in text
 
