@@ -122,3 +122,9 @@ def test_cloud_airflow_has_no_static_keys_or_local_endpoints():
     for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "S3_ENDPOINT", "TRINO_HOST"):
         assert name not in env, name
     assert set(merged()["airflow"]["depends_on"]) == {"postgres"}
+
+
+def test_dags_run_on_their_schedules_from_the_first_boot():
+    """Airflow pauses new DAGs by default; dbt_gold and freshness_monitor must just run."""
+    for env in (BASE["airflow"]["environment"], merged()["airflow"]["environment"]):
+        assert env["AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION"] == "False"
