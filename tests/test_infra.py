@@ -226,6 +226,10 @@ def test_user_data_checks_out_a_tag_and_verifies_dockers_key():
     assert '--branch "${repo_tag}"' in USER_DATA
     assert "9DC858229FC7DD38854AE2D88D81803C0EBFCD88" in USER_DATA
     assert "make up-airflow ENV_FILE=.env.aws" in USER_DATA  # core + Airflow on EC2
+    # The cloud path is checked at boot, after the services start and before "finished".
+    up = USER_DATA.index("make up-airflow ENV_FILE=.env.aws")
+    check = USER_DATA.index("make boot-check ENV_FILE=.env.aws")
+    assert up < check < USER_DATA.index('echo "boot finished')
     assert "make produce" not in USER_DATA.split("# 5.")[1].split("\n", 3)[-1]
 
 
