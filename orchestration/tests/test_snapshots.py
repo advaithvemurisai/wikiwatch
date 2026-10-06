@@ -172,9 +172,64 @@ def test_export_writes_three_valid_snapshots(tmp_path):
     for name in ("alerts", "baseline", "meta"):
         s.validate(name, json.loads((tmp_path / f"dashboard/v1/{name}.json").read_text()))
     assert counts["alerts"] == 1
+    meta = json.loads((tmp_path / "dashboard/v1/meta.json").read_text())
+    assert meta["exports"] == {
+        "alerts": {"status": "ok", "failed_query": None},
+        "baseline": {"status": "ok", "failed_query": None},
+    }
 
 
-def test_export_writes_nothing_when_any_snapshot_is_invalid(tmp_path):
-    with pytest.raises(s.SnapshotError):
+class FailingEngine(FakeEngine):
+    """Like FakeEngine, but a query on `table` fails the way Athena does for a missing table."""
+
+    def __init__(self, rows_by_marker, table):
+        super().__init__(rows_by_marker)
+        self.table = table
+
+    def run(self, sql):
+        if self.table in sql:
+            raise RuntimeError(f"Athena query failed: TABLE_NOT_FOUND: {self.table}")
+        return super().run(sql)
+
+
+def read(tmp_path, name):
+    path = tmp_path / f"dashboard/v1/{name}.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def test_a_failing_query_affects_only_its_own_snapshot(tmp_path):
+    engine = FailingEngine(fake_rows(), "gold.burst_alerts")
+    with pytest.raises(s.ExportError, match="alerts"):
+        s.export_dashboard(engine, LocalStore(tmp_path), NOW)
+    assert read(tmp_path, "alerts") is None
+    s.validate("baseline", read(tmp_path, "baseline"))
+    meta = read(tmp_path, "meta")
+    s.validate("meta", meta)
+    assert meta["exports"]["alerts"] == {"status": "failed", "failed_query": "alerts"}
+    assert meta["exports"]["baseline"]["status"] == "ok"
+    assert meta["snapshots"]["alerts"] is None and meta["snapshots"]["edits_per_min"] == 0
+
+
+def test_a_failed_export_keeps_the_last_good_snapshot(tmp_path):
+    store = LocalStore(tmp_path)
+    s.export_dashboard(FakeEngine(fake_rows()), store, NOW)
+    before = read(tmp_path, "alerts")
+    with pytest.raises(s.ExportError):
+        s.export_dashboard(FailingEngine(fake_rows(), "gold.burst_alerts"), store, NOW)
+    assert read(tmp_path, "alerts") == before
+
+
+def test_an_invalid_snapshot_is_not_written_and_meta_says_so(tmp_path):
+    with pytest.raises(s.ExportError):
         s.export_dashboard(FakeEngine(fake_rows(bad_alert=True)), LocalStore(tmp_path), NOW)
-    assert not (tmp_path / "dashboard").exists()
+    assert read(tmp_path, "alerts") is None
+    meta = read(tmp_path, "meta")
+    assert meta["exports"]["alerts"] == {"status": "failed", "failed_query": None}
+    assert read(tmp_path, "baseline") is not None
+
+
+def test_meta_without_exports_still_validates():
+    """meta.json files written before the exports field existed stay valid."""
+    meta = s.build_meta(NOW, s.dbt_status(None), None, None)
+    assert "exports" not in meta
+    s.validate("meta", meta)

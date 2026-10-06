@@ -16,7 +16,7 @@ TFLINT ?= tflint
 NODE24_BIN ?= /opt/homebrew/opt/node@24/bin
 NODE_PATH := $(if $(wildcard $(NODE24_BIN)/node),PATH="$(NODE24_BIN):$$PATH")
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test test-dags dbt-build dbt-docs lint tf-validate secrets-check e2e web web-s3 web-check check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test test-dags boot-check dbt-build dbt-docs lint tf-validate secrets-check e2e web web-s3 web-check check-env
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
@@ -88,6 +88,10 @@ test: $(STAMP) ## Unit and contract tests, plus dbt unit tests when Trino is up
 	fi
 
 AIRFLOW_IMAGE := wikiwatch/airflow:3.3.2-dbt1.12.5
+
+boot-check: check-env ## After make up-airflow: DAGs unpaused, one run of each DAG succeeds
+	$(COMPOSE) --profile core --profile airflow exec -T airflow \
+		python /opt/wikiwatch/airflow/tests/boot_check.py
 
 test-dags: ## Import-check the Airflow DAGs inside the real Airflow image (no services needed)
 	docker build -q -t $(AIRFLOW_IMAGE) docker/airflow >/dev/null

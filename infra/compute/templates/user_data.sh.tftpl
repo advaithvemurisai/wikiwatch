@@ -69,4 +69,13 @@ done
 #    by hand over SSM with `make produce MODE=...`, exactly as on the laptop, because
 #    picking the wrong mode could skip events.
 make up-airflow ENV_FILE=.env.aws
+
+# 6. Prove the cloud path now, not 30 minutes in: both DAGs unpaused, and one run of each
+#    (Athena, Glue, dbt on Athena, the S3 export) succeeds. A failure is logged loudly but
+#    leaves the services running, so it can be investigated over SSM.
+if make boot-check ENV_FILE=.env.aws; then
+  echo "boot check passed"
+else
+  echo "BOOT CHECK FAILED: see the lines above; the services are still running"
+fi
 echo "boot finished $(date -u +%FT%TZ)"

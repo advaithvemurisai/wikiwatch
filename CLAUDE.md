@@ -165,6 +165,7 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | `make web` / `make web-s3` | Run the Next.js app on fixture snapshots / on the snapshots in local SeaweedFS (Node 24) |
 | `make web-check` | Web type check, ESLint, vitest and `next build` (the CI web job) |
 | `make test-dags` | Import-check the Airflow DAGs inside the real Airflow image |
+| `make boot-check` | After `make up-airflow`: both DAGs unpaused and one run of each succeeds (runs at every EC2 boot) |
 | `make smoke` | Spark writes an Iceberg table, Trino reads it (needs `make up-dbt`) |
 | `make produce MODE=fresh\|resume` | Start the SSE producer (`fresh` only for the very first run or after long gaps) |
 | `make produce-stop` / `make producer-logs` | Stop the producer gracefully / follow its JSON logs |

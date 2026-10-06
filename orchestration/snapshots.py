@@ -4,11 +4,16 @@ The snapshot JSON is a data contract like the event schema: every document carri
 schema_version and is validated against schemas/dashboard/ before it is written. An
 invalid or oversized document is never written, so the site keeps serving the last good
 one instead of breaking.
+
+alerts.json and baseline.json are exported independently: a failing query (for example
+a table dbt could not build) affects only its own snapshot. meta.json is always written
+and records which exports failed, so the site can say why a section is stale.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 from collections import defaultdict
 from datetime import UTC, date, datetime
@@ -31,8 +36,15 @@ SCHEMA_DIR = Path(
 )
 
 
+log = logging.getLogger(__name__)
+
+
 class SnapshotError(ValueError):
     """A snapshot failed its schema or size limit; nothing was written."""
+
+
+class ExportError(RuntimeError):
+    """One or more snapshots could not be exported (meta.json says which)."""
 
 
 def iso(value: datetime | date | None) -> str | None:
@@ -208,44 +220,88 @@ def dbt_status(run_results: Path | None) -> dict[str, Any]:
     }
 
 
-def build_meta(now: datetime, dbt: dict, alerts: dict, baseline: dict) -> dict:
-    return {
+def build_meta(
+    now: datetime,
+    dbt: dict,
+    alerts: dict | None,
+    baseline: dict | None,
+    exports: dict[str, dict] | None = None,
+) -> dict:
+    """meta.json: the dbt result, row counts (null for a snapshot that failed to export)
+    and, when given, the status of each export."""
+    meta = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": iso(now),
         "dbt": dbt,
         "snapshots": {
-            "alerts": len(alerts["alerts"]),
-            "digest": len(alerts["digest"]),
-            "edits_per_min": len(baseline["edits_per_min"]),
-            "bot_share_hourly": len(baseline["bot_share_hourly"]),
-            "page_activity": len(baseline["page_activity"]),
+            "alerts": len(alerts["alerts"]) if alerts else None,
+            "digest": len(alerts["digest"]) if alerts else None,
+            "edits_per_min": len(baseline["edits_per_min"]) if baseline else None,
+            "bot_share_hourly": len(baseline["bot_share_hourly"]) if baseline else None,
+            "page_activity": len(baseline["page_activity"]) if baseline else None,
         },
     }
+    if exports is not None:
+        meta["exports"] = exports
+    return meta
+
+
+class _Rows:
+    """Runs export queries on demand and remembers which one was running last."""
+
+    def __init__(self, engine: Engine, now: datetime) -> None:
+        self.engine, self.now, self.current = engine, now, None
+
+    def __call__(self, query: q.Query) -> list[dict]:
+        self.current = query.name
+        return self.engine.run(query.render(self.now))
+
+
+def _export(name: str, rows: _Rows, store: Store, build) -> tuple[dict | None, dict]:
+    """Build, validate and write one snapshot. Returns (document or None, status)."""
+    rows.current = None
+    try:
+        document = build()
+        rows.current = None  # from here on a failure is the document's, not a query's
+        write(store, name, document)
+    except Exception as exc:  # noqa: BLE001 - recorded in meta.json, re-raised by the caller
+        # Full detail only in the task log: Athena messages can name buckets or paths.
+        log.error("%s.json export failed (query %s): %s", name, rows.current, exc)
+        return None, {"status": "failed", "failed_query": rows.current}
+    return document, {"status": "ok", "failed_query": None}
 
 
 def export_dashboard(
     engine: Engine, store: Store, now: datetime, run_results: Path | None = None
-) -> dict[str, int]:
-    """Run the export queries and write alerts.json, baseline.json and meta.json.
+) -> dict[str, int | None]:
+    """Export alerts.json and baseline.json independently, then always write meta.json.
 
-    All three are built and validated before any is written, so a failure leaves the
-    previous snapshots untouched. meta.json goes last: it describes the other two.
+    A snapshot that fails (a query error, or an invalid or oversized document) is not
+    written, so the site keeps its last good copy; meta.json records the failure. Raises
+    ExportError after writing meta.json if any export failed, so the Airflow task fails.
     """
-    rows = {query.name: engine.run(query.render(now)) for query in q.EXPORT_QUERIES}
-    alerts = build_alerts(now, rows["alerts"], rows["digest"])
-    baseline = build_baseline(
-        now,
-        rows["edits_per_min_final"],
-        rows["edits_per_min_realtime"],
-        rows["bot_share_hourly"],
-        rows["recorded_hours"],
-        rows["page_activity"],
-        rows["watchlist"],
+    rows = _Rows(engine, now)
+    alerts, alerts_status = _export(
+        "alerts", rows, store, lambda: build_alerts(now, rows(q.ALERTS), rows(q.DIGEST))
     )
-    meta = build_meta(now, dbt_status(run_results), alerts, baseline)
-    for name, document in (("alerts", alerts), ("baseline", baseline), ("meta", meta)):
-        validate(name, document)
-    write(store, "alerts", alerts)
-    write(store, "baseline", baseline)
+    baseline, baseline_status = _export(
+        "baseline",
+        rows,
+        store,
+        lambda: build_baseline(
+            now,
+            rows(q.EDITS_PER_MIN_FINAL),
+            rows(q.EDITS_PER_MIN_REALTIME),
+            rows(q.BOT_SHARE_HOURLY),
+            rows(q.RECORDED_HOURS),
+            rows(q.PAGE_ACTIVITY),
+            rows(q.WATCHLIST),
+        ),
+    )
+    exports = {"alerts": alerts_status, "baseline": baseline_status}
+    meta = build_meta(now, dbt_status(run_results), alerts, baseline, exports)
     write(store, "meta", meta)
+    failed = sorted(name for name, status in exports.items() if status["status"] == "failed")
+    if failed:
+        raise ExportError(f"export failed for {', '.join(failed)} (see meta.json and the log)")
     return meta["snapshots"]

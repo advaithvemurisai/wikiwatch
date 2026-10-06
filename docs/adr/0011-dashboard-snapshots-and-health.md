@@ -70,3 +70,19 @@ the docs leave open had to be decided, and one line of v1.md turned out to be wr
 - Freshness uses event time for Silver and Gold, so a replay of old events shows those
   layers as stale even while Bronze is fresh. That is correct: the newest event in the
   lake is old.
+
+## Amendment (2026-10-06): independent exports
+
+Decision 3 ("validate everything before writing anything") turned out too strict in the
+first cloud session: one failing query (`gold.burst_alerts` was missing) blocked all
+three files, including `meta.json`, the file that should have said what went wrong. Now
+`alerts.json` and `baseline.json` are each built, validated and written on their own; a
+failure leaves that snapshot's last good copy in place. `meta.json` is always written and
+records each export's status and the name of the failing query (never the error message,
+which can contain bucket paths; that stays in the task log). The task still fails after
+writing it, so Airflow shows the failure. The site says "The latest export failed" on the
+affected page and shows the export status on Pipeline health.
+
+The `meta.json` change is additive: `exports` is optional and the row counts may be null.
+Every existing `meta.json` still validates, and the site deploys from `main` before any
+session writes the new form, so `schema_version` stays 1.

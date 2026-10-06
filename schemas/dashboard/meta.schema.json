@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wikiwatch.example/schemas/dashboard/meta.schema.json",
   "title": "dashboard/v1/meta.json",
-  "description": "Last dbt_gold run: dbt result and the row counts of the snapshots it wrote.",
+  "description": "Last dbt_gold run: dbt result, the row counts of the snapshots it wrote (null for a snapshot that failed to export) and, from 2026-10, the status of each export.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -72,24 +72,96 @@
       ],
       "properties": {
         "alerts": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
         },
         "digest": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
         },
         "edits_per_min": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
         },
         "bot_share_hourly": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
         },
         "page_activity": {
-          "type": "integer",
+          "type": [
+            "integer",
+            "null"
+          ],
           "minimum": 0
+        }
+      }
+    },
+    "exports": {
+      "description": "Status of each export. Optional: meta.json files written before it existed stay valid.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alerts",
+        "baseline"
+      ],
+      "properties": {
+        "alerts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "failed_query"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "ok",
+                "failed"
+              ]
+            },
+            "failed_query": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[a-z_]{1,64}$"
+            }
+          }
+        },
+        "baseline": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "failed_query"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "ok",
+                "failed"
+              ]
+            },
+            "failed_query": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[a-z_]{1,64}$"
+            }
+          }
         }
       }
     }
