@@ -64,6 +64,21 @@ for name in POSTGRES_PASSWORD CATALOG_DB_PASSWORD AIRFLOW_DB_PASSWORD AIRFLOW_FE
   grep -q "^$name=." .env.aws || { echo "missing SSM parameter /wikiwatch/env/$name"; exit 1; }
 done
 
+# 5a. Use the release's prebuilt images (the `images` workflow) when all three can be
+#     pulled; then the Makefile skips the local build. Otherwise build as before: a
+#     missing or private image can never stop a session.
+pull_prebuilt() {
+  for name in spark airflow producer; do
+    docker pull -q "ghcr.io/${github_repo}-$name:${repo_tag}" > /dev/null || return 1
+  done
+}
+if pull_prebuilt; then
+  echo "IMAGE_TAG := ${repo_tag}" > .image-tag.mk
+  echo "using prebuilt images for ${repo_tag}"
+else
+  echo "prebuilt images for ${repo_tag} not available; building locally"
+fi
+
 # 5. Start core + Airflow with the cloud overlay (S3 + Glue + Athena, no SeaweedFS, REST
 #    catalog or Trino); the 16 GB instance runs both comfortably. The producer is started
 #    by hand over SSM with `make produce MODE=...`, exactly as on the laptop, because

@@ -29,6 +29,13 @@ def _override(loader: yaml.SafeLoader, node: yaml.Node) -> Override:
 
 ComposeLoader.add_constructor("!override", _override)
 
+
+class Reset:
+    """A value tagged !reset in an overlay: the key is removed from the base."""
+
+
+ComposeLoader.add_constructor("!reset", lambda loader, node: Reset())
+
 BASE = yaml.safe_load((ROOT / "docker-compose.yml").read_text())["services"]
 OVERLAY = yaml.load((ROOT / "docker-compose.aws.yml").read_text(), Loader=ComposeLoader)[  # noqa: S506
     "services"
@@ -128,3 +135,30 @@ def test_dags_run_on_their_schedules_from_the_first_boot():
     """Airflow pauses new DAGs by default; dbt_gold and freshness_monitor must just run."""
     for env in (BASE["airflow"]["environment"], merged()["airflow"]["environment"]):
         assert env["AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION"] == "False"
+
+
+# ComposeLoader is a SafeLoader that only adds the !reset/!override tags.
+_PREBUILT_TEXT = (ROOT / "docker-compose.prebuilt.yml").read_text()
+PREBUILT = yaml.load(_PREBUILT_TEXT, Loader=ComposeLoader)["services"]  # noqa: S506
+
+
+def test_prebuilt_overlay_swaps_builds_for_the_release_images():
+    assert set(PREBUILT) == {"spark", "airflow", "producer"}
+    for name, service in PREBUILT.items():
+        assert service["image"] == (
+            f"ghcr.io/advaithvemurisai/wikiwatch-{name}:${{IMAGE_TAG:?set IMAGE_TAG}}"
+        )
+        assert isinstance(service.get("build"), Reset), f"{name}: must reset the local build"
+        assert name in BASE and "build" in BASE[name], f"{name} is built locally otherwise"
+
+
+def test_prebuilt_images_are_used_only_after_all_three_pulled():
+    user_data = (ROOT / "infra/compute/templates/user_data.sh.tftpl").read_text()
+    pull = user_data.index("pull_prebuilt()")
+    marker = user_data.index('echo "IMAGE_TAG := ${repo_tag}" > .image-tag.mk')
+    up = user_data.index("make up-airflow ENV_FILE=.env.aws")
+    assert pull < marker < up
+    assert 'docker pull -q "ghcr.io/${github_repo}-$name:${repo_tag}"' in user_data
+    makefile = (ROOT / "Makefile").read_text()
+    assert "-include .image-tag.mk" in makefile
+    assert "$(if $(IMAGE_TAG),-f docker-compose.prebuilt.yml)" in makefile

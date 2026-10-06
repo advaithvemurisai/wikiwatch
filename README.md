@@ -180,5 +180,5 @@ when done. The Vercel side is in [docs/vercel-setup.md](docs/vercel-setup.md).
 
 - [docs/v1.md](docs/v1.md): v1 scope, business story, alert rules, data model
 - [docs/plan.md](docs/plan.md): full technical design
-- [docs/adr/](docs/adr/): 11 architecture decision records, from Airflow 3 to the dashboard
-  snapshot contract
+- [docs/adr/](docs/adr/): 12 architecture decision records, from Airflow 3 to the dashboard
+  snapshot contract and session start

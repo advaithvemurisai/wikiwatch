@@ -1,9 +1,13 @@
 # WikiWatch developer commands. See CLAUDE.md for the rules behind them.
 
 ENV_FILE ?= .env.local
+# On EC2 the boot script writes .image-tag.mk (IMAGE_TAG := <release tag>) after pulling
+# the release's prebuilt images; without it, images are built locally as usual.
+-include .image-tag.mk
 # On EC2 (ENV_FILE=.env.aws) the cloud overlay swaps SeaweedFS and the REST catalog for S3 + Glue.
-COMPOSE_FILES := -f docker-compose.yml $(if $(filter .env.aws,$(ENV_FILE)),-f docker-compose.aws.yml)
-COMPOSE  := docker compose $(COMPOSE_FILES) --env-file $(ENV_FILE)
+COMPOSE_FILES := -f docker-compose.yml $(if $(filter .env.aws,$(ENV_FILE)),-f docker-compose.aws.yml) \
+	$(if $(IMAGE_TAG),-f docker-compose.prebuilt.yml)
+COMPOSE  := $(if $(IMAGE_TAG),IMAGE_TAG=$(IMAGE_TAG) )docker compose $(COMPOSE_FILES) --env-file $(ENV_FILE)
 VENV     := .venv
 DBT      := DBT_PROFILES_DIR=dbt $(VENV)/bin/dbt --no-use-colors
 DBT_ARGS := --project-dir dbt
