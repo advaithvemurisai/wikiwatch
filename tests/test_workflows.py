@@ -134,3 +134,4 @@ def test_availability_zone_reaches_terraform_through_env_only():
     check = next(s for s in data["jobs"]["up"]["steps"] if s.get("name") == "Check the inputs")
     assert check["env"]["AZ"] == "${{ inputs.availability_zone }}"
     assert 'echo "TF_VAR_availability_zone=$AZ"' in check["run"]
+    assert 'REPO_TAG="${REPO_TAG//[[:space:]]/}"' in check["run"], "trailing spaces are stripped"
