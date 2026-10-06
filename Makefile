@@ -16,7 +16,7 @@ TFLINT ?= tflint
 NODE24_BIN ?= /opt/homebrew/opt/node@24/bin
 NODE_PATH := $(if $(wildcard $(NODE24_BIN)/node),PATH="$(NODE24_BIN):$$PATH")
 
-.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref alert-scenario check-lake test test-dags boot-check dbt-build dbt-docs lint tf-validate secrets-check e2e web web-s3 web-check check-env
+.PHONY: help venv env-local up up-airflow up-dbt down smoke produce produce-stop producer-logs spark-logs replay load-ref maintain-lake alert-scenario check-lake test test-dags boot-check dbt-build dbt-docs lint tf-validate secrets-check e2e web web-s3 web-check check-env
 
 help:
 	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed 's/:.*## /\t/' | sort
@@ -72,6 +72,9 @@ replay: check-env $(STAMP) ## Publish a recorded fixture through the producer pa
 
 load-ref: check-env ## Reload ref tables from dbt/seeds/*.csv (applies from the next micro-batch)
 	$(COMPOSE) --profile core run --rm --no-deps -T --entrypoint /opt/spark/bin/spark-submit spark --driver-memory=768m /opt/wikiwatch/streaming/jobs/load_ref.py
+
+maintain-lake: check-env ## Compact closed partitions and expire old snapshots of the stream's tables (start of a session)
+	$(COMPOSE) --profile core run --rm --no-deps -T --entrypoint /opt/spark/bin/spark-submit spark --driver-memory=1g /opt/wikiwatch/streaming/jobs/maintain.py
 
 alert-scenario: check-env $(STAMP) ## Replay scripted edits; check exact alerts and detection latency (needs make up-dbt)
 	$(PY) scripts/run_alert_scenario.py

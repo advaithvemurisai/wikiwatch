@@ -139,6 +139,9 @@ they grant access: only this repository's workflows can assume the roles.
 - [ ] If demo-up fails with `InsufficientInstanceCapacity` (no spare t4g.xlarge in that
       zone), run **demo-down** to remove the network it created, then run demo-up again
       with another `availability_zone` (for example `us-east-1b`) or `market: on-demand`.
+- [ ] On the instance, before the producer (from the second session on):
+      `cd /opt/wikiwatch && sudo make maintain-lake ENV_FILE=.env.aws` compacts the small
+      files earlier sessions left and expires snapshots older than 3 days.
 - [ ] On the instance: `cd /opt/wikiwatch && sudo make produce MODE=fresh ENV_FILE=.env.aws`
       for the very first run (`resume` after that).
 - [ ] Run **demo-down**; the compute stack is empty afterwards.

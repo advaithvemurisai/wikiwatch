@@ -146,6 +146,7 @@ run `make produce MODE=fresh` the first time and `make produce MODE=resume` afte
 | `make alert-scenario` | Replay scripted edits; exact expected alerts and detection latency |
 | `make dbt-build` | dbt models and every dbt test on local Trino |
 | `make load-ref` | Reload the watchlist and alert thresholds into the running stream |
+| `make maintain-lake` | Compact small files and expire old snapshots (start of a session) |
 | `make web-s3` / `make web-check` | Dashboard on local S3 snapshots / type check, lint, tests, build |
 
 | Local UI | Address |
