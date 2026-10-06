@@ -5,7 +5,9 @@ Runs inside the Airflow container after `make up-airflow` (the boot script calls
 `airflow dags test` and reads the run's final state:
 
 - freshness_monitor: Athena (or Trino) answers, health.json is written to S3;
-- dbt_gold: dbt builds Gold on Athena, and the snapshots are exported.
+- dbt_gold: dbt builds Gold on Athena, and the snapshots are exported;
+- the dbt unit tests pass on this engine too (they run on Trino in CI; the scheduled
+  build skips them, so this is where Athena-only differences show up).
 
 Each problem in the first cloud session (paused DAGs, a dbt test failing on Athena, manual
 runs without a logical date) would have shown up here instead of 30 minutes in.
@@ -15,11 +17,13 @@ Prints one line per check and exits non-zero if any failed.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import sys
 
 DAGS = ("freshness_monitor", "dbt_gold")
+UNIT_TARGET = "/tmp/dbt/unit"  # noqa: S108 - container-local scratch, like the DAG's target
 TIMEOUT_S = 15 * 60
 
 
@@ -52,6 +56,24 @@ def latest_state(rows: list[dict]) -> str:
     return runs[-1].get("state", "unknown") if runs else "none"
 
 
+def dbt_unit_tests() -> subprocess.CompletedProcess:
+    """dbt's unit tests on the session's engine, in their own target folder."""
+    dbt, project = os.environ.get("DBT_BIN", "dbt"), "/opt/wikiwatch/dbt"
+    target = os.environ.get("DBT_TARGET", "local")
+    return subprocess.run(  # noqa: S603 - fixed arguments; dbt is the image's own binary
+        [dbt, "--no-use-colors", "test", "--select", "test_type:unit",
+         "--project-dir", project, "--profiles-dir", project, "--target", target,
+         "--target-path", UNIT_TARGET, "--log-path", f"{UNIT_TARGET}/logs"],
+        capture_output=True, text=True, timeout=TIMEOUT_S, check=False,
+    )  # fmt: skip
+
+
+def dbt_summary(output: str) -> str:
+    """dbt's 'Done. PASS=... ERROR=...' line, or a note that it is missing."""
+    lines = [line for line in output.splitlines() if "Done. PASS=" in line]
+    return lines[-1].split("Done. ", 1)[1].strip() if lines else "no summary (dbt did not finish)"
+
+
 def main() -> int:
     failures = []
     bad = paused(json_rows(airflow("dags", "list", "-o", "json").stdout))
@@ -71,6 +93,16 @@ def main() -> int:
             failures.append(f"{dag_id}: run ended {state}")
         print(f"boot check: {dag_id} ... {'ok' if state == 'success' else 'FAIL'} ({state})",
               flush=True)  # fmt: skip
+
+    try:
+        unit = dbt_unit_tests()
+        summary = dbt_summary(unit.stdout)
+        ok = unit.returncode == 0
+    except subprocess.TimeoutExpired:
+        summary, ok = "timeout", False
+    if not ok:
+        failures.append(f"dbt unit tests: {summary}")
+    print(f"boot check: dbt unit tests ... {'ok' if ok else 'FAIL'} ({summary})", flush=True)
 
     if failures:
         print("BOOT CHECK FAILED: " + "; ".join(failures))

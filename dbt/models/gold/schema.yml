@@ -88,13 +88,15 @@ unit_tests:
       - input: source('ref', 'alert_rules')
         rows:
           - {rule_id: R5, severity: medium, min_edits: 5, window_minutes: 10, enabled: true}
+    # No timestamp columns here: dbt casts expected strings to the model's column types,
+    # and Athena rejects that cast for timestamps while Trino accepts it. alert_id already
+    # pins the window start (it hashes rule, page and window start), and window_end is
+    # checked on real data by tests/assert_burst_windows_match_the_rule.sql.
     expect:
       rows:
         - alert_id: d866416af6b8f70081bd782a217c03ee6ea216677ab4a2a5ac3698afb4cbf8f9
           rule_id: R5
           severity: medium
-          window_start: "2026-10-03 12:00:00"
-          window_end: "2026-10-03 12:10:00"
           edits: 5
           category: own_brand
 
