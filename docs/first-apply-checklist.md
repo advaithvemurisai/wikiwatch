@@ -136,9 +136,9 @@ they grant access: only this repository's workflows can assume the roles.
       10 minutes, from CloudShell:
       `aws ssm start-session --target <instance id from the demo-up log>`, then
       `sudo tail -n 50 /var/log/wikiwatch-boot.log` ends with "boot finished".
-- [ ] If demo-up fails with `InsufficientInstanceCapacity` (no spare t4g.xlarge in that
-      zone), run **demo-down** to remove the network it created, then run demo-up again
-      with another `availability_zone` (for example `us-east-1b`) or `market: on-demand`.
+- [ ] If AWS has no spare t4g.xlarge (`InsufficientInstanceCapacity`), demo-up retries by
+      itself in another zone and then as on-demand; the job summary says which launched.
+      Only if all attempts fail: run **demo-down**, then try again later.
 - [ ] On the instance, before the producer (from the second session on):
       `cd /opt/wikiwatch && sudo make maintain-lake ENV_FILE=.env.aws` compacts the small
       files earlier sessions left and expires snapshots older than 3 days.

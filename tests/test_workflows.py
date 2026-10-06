@@ -107,25 +107,38 @@ def test_plans_on_prs_are_read_only_and_skip_forks():
 def test_soak_flag_is_set_only_after_a_successful_apply():
     steps = load(WORKFLOWS["demo-up.yml"])["jobs"]["up"]["steps"]
     names = [s.get("name", "") for s in steps]
-    assert names.index("Apply") < names.index("Set the soak flag (48 hours)")
+    apply = next(i for i, n in enumerate(names) if n.startswith("Apply"))
+    assert apply < names.index("Set the soak flag (48 hours)")
 
 
-APPLY_FILES = ["demo-up.yml", ".github/actions/compute-destroy/action.yml"]
+APPLY_SCRIPT = (ROOT / "scripts/apply_session.py").read_text()
 
 
-@pytest.mark.parametrize("name", APPLY_FILES)
-def test_applies_stop_cleanly_and_show_only_masked_errors(name):
+@pytest.mark.parametrize(
+    "text",
+    [ALL_FILES[".github/actions/compute-destroy/action.yml"], APPLY_SCRIPT],
+    ids=["destroy", "demo-up apply"],
+)
+def test_applies_stop_cleanly_and_show_only_masked_errors(text):
     """A hung apply must end before the job limit (so state and lock are saved), and a
     failure must say why without putting Terraform's raw output in the log."""
-    text = ALL_FILES.get(name) or WORKFLOWS[name]
-    assert "timeout --signal=INT --kill-after=3m" in text
-    assert "scripts/tf_errors.py" in text
+    assert "--signal=INT" in text and "--kill-after=3m" in text
+    assert "tf_errors.py" in text
+
+
+def test_demo_up_applies_through_the_capacity_fallback():
+    apply = next(
+        s for s in load(WORKFLOWS["demo-up.yml"])["jobs"]["up"]["steps"]
+        if s.get("name", "").startswith("Apply")
+    )  # fmt: skip
+    assert 'python3 "$GITHUB_WORKSPACE/scripts/apply_session.py"' in apply["run"]
+    assert "terraform apply" not in apply["run"]
 
 
 @pytest.mark.parametrize("name", ["demo-up.yml", "demo-down.yml", "nightly-destroy.yml"])
 def test_compute_jobs_outlast_terraforms_own_timeout(name):
     for job in load(WORKFLOWS[name])["jobs"].values():
-        assert job["timeout-minutes"] >= 30  # apply/destroy are capped at 15/20 minutes
+        assert job["timeout-minutes"] >= 30  # apply attempts / destroy are time-limited
 
 
 def test_availability_zone_reaches_terraform_through_env_only():

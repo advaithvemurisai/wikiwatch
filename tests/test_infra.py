@@ -186,7 +186,7 @@ def test_instance_guardrails():
 
 def test_capacity_shortage_fails_cleanly_and_can_move_zones():
     instance = block(stack_text("compute"), 'resource "aws_instance" "session"')
-    assert 'create = "10m"' in instance, "must end before the workflow's apply timeout"
+    assert 'create = "6m"' in instance, "three attempts must fit in demo-up's time limit"
     subnet = block(stack_text("compute"), 'resource "aws_subnet" "public"')
     assert "availability_zone       = local.session_az" in subnet
     assert (
