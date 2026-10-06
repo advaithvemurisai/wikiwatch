@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { LocalTime } from "@/components/LocalTime";
 import { SeverityBadge } from "@/components/Status";
 import {
   CATEGORY_LABEL,
@@ -10,8 +11,10 @@ import {
   fmtDay,
   fmtInt,
   fmtSeconds,
-  fmtUtc,
+  RULE_NAME,
+  teamLabel,
   timeAgo,
+  wikipediaUrl,
 } from "@/lib/format";
 import type { Alert, AlertsSnapshot, Category, DigestRow, RuleId } from "@/lib/types";
 
@@ -25,6 +28,45 @@ const RULE_COUNT = {
 } as const satisfies Record<RuleId, keyof DigestRow>;
 
 type Filter = { rule: RuleId | ""; category: Category | ""; page: string };
+
+function PageLink({ wiki, title }: { wiki: string; title: string }) {
+  const url = wikipediaUrl(wiki, title);
+  if (!url) return <>{title}</>;
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer">
+      {title}
+      <span className="sr-only"> (opens Wikipedia in a new tab)</span>
+    </a>
+  );
+}
+
+const SEVERITIES = ["high", "medium", "low"] as const;
+
+/** One line that answers "do I need to act?" before the table does. */
+function Summary({ alerts, now, days }: { alerts: Alert[]; now: number; days: number }) {
+  if (alerts.length === 0) {
+    return <p className="summary">No alerts in the last {days} days.</p>;
+  }
+  const newest = alerts.reduce((a, b) => (a.event_ts > b.event_ts ? a : b));
+  return (
+    <p className="summary">
+      <strong>
+        {fmtInt(alerts.length)} {alerts.length === 1 ? "alert" : "alerts"}
+      </strong>{" "}
+      in the last {days} days
+      {SEVERITIES.map((sev) => {
+        const n = alerts.filter((a) => a.severity === sev).length;
+        return n ? (
+          <span key={sev}>
+            {" · "}
+            <SeverityBadge severity={sev} /> {fmtInt(n)}
+          </span>
+        ) : null;
+      })}
+      {" · "}newest {timeAgo(newest.event_ts, now)}
+    </p>
+  );
+}
 
 function ruleDetail(alert: Alert): string | null {
   if (alert.edits_in_window !== null) return `${fmtInt(alert.edits_in_window)} edits in the window`;
@@ -70,6 +112,7 @@ export function AlertsView({ snapshot, now }: { snapshot: AlertsSnapshot; now: n
 
   return (
     <>
+      <Summary alerts={snapshot.alerts} now={now} days={snapshot.window_days} />
       <div className="filters" role="group" aria-label="Filters">
         <label>
           Rule
@@ -122,10 +165,11 @@ export function AlertsView({ snapshot, now }: { snapshot: AlertsSnapshot; now: n
 
       <section className="section" style={{ marginTop: 0 }} aria-labelledby="open-alerts">
         <h2 id="open-alerts">
-          Open alerts <span className="muted">({fmtInt(alerts.length)})</span>
+          Alerts, last {snapshot.window_days} days{" "}
+          <span className="muted">({fmtInt(alerts.length)})</span>
         </h2>
         <p className="section-note">
-          Last {snapshot.window_days} days, highest severity first, then newest.
+          Highest severity first, then newest. Page names link to Wikipedia.
         </p>
         <div className="table-wrap">
           {alerts.length === 0 ? (
@@ -155,9 +199,11 @@ export function AlertsView({ snapshot, now }: { snapshot: AlertsSnapshot; now: n
                         <SeverityBadge severity={a.severity} />
                       </td>
                       <td>
-                        <div style={{ fontWeight: 560 }}>{a.title}</div>
+                        <div style={{ fontWeight: 560 }}>
+                          <PageLink wiki={a.wiki} title={a.title} />
+                        </div>
                         <div className="small muted">
-                          {CATEGORY_LABEL[a.category]} · {a.owner_team}
+                          {CATEGORY_LABEL[a.category]} · {teamLabel(a.owner_team)}
                         </div>
                       </td>
                       <td>
@@ -169,9 +215,8 @@ export function AlertsView({ snapshot, now }: { snapshot: AlertsSnapshot; now: n
                       <td className="num">{a.byte_delta === null ? "—" : fmtBytes(a.byte_delta)}</td>
                       <td>{a.editor_type ? EDITOR_LABEL[a.editor_type] : "—"}</td>
                       <td>
-                        <time dateTime={a.event_ts} title={fmtUtc(a.event_ts)} className="nowrap">
-                          {timeAgo(a.event_ts, now)}
-                        </time>
+                        <div className="nowrap">{timeAgo(a.event_ts, now)}</div>
+                        <LocalTime iso={a.event_ts} className="small muted nowrap" />
                         <div className="small muted nowrap">detected in {detectionDelay(a)}</div>
                       </td>
                     </tr>
@@ -221,13 +266,15 @@ export function AlertsView({ snapshot, now }: { snapshot: AlertsSnapshot; now: n
               <tbody>
                 {digest.map((d) => {
                   const counts = RULES.filter((id) => d[RULE_COUNT[id]] > 0).map(
-                    (id) => `${id} ×${d[RULE_COUNT[id]]}`,
+                    (id) => `${RULE_NAME[id]} \u00d7${d[RULE_COUNT[id]]}`,
                   );
                   return (
                     <tr key={`${d.digest_date}|${d.wiki}|${d.title}`}>
                       <td className="nowrap">{fmtDay(d.digest_date)}</td>
                       <td>
-                        <div style={{ fontWeight: 560 }}>{d.title}</div>
+                        <div style={{ fontWeight: 560 }}>
+                          <PageLink wiki={d.wiki} title={d.title} />
+                        </div>
                         <div className="small muted">{CATEGORY_LABEL[d.category]}</div>
                       </td>
                       <td className="num">{fmtInt(d.edits)}</td>

@@ -369,3 +369,28 @@ button {
   white-space: nowrap;
   border: 0;
 }
+
+.summary {
+  margin: 0 0 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-secondary);
+}
+
+.summary strong {
+  color: var(--ink);
+}
+
+.intro {
+  border-bottom: 1px solid var(--border);
+  background: var(--wash);
+  font-size: 0.88rem;
+  color: var(--ink-secondary);
+}
+
+.intro .main {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
