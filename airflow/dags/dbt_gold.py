@@ -35,11 +35,14 @@ TARGET_PATH = "/tmp/dbt/target"  # noqa: S108
     doc_md=__doc__,
 )
 def dbt_gold():
+    # Unit tests run in development and CI (make test, the e2e job), not here: they check
+    # the SQL logic on fixed inputs, and a failing one would skip its model in production.
     build = BashOperator(
         task_id="dbt_build",
         bash_command=(
             f"{DBT} --no-use-colors build --project-dir {PROJECT} --profiles-dir {PROJECT} "
-            f'--target "$DBT_TARGET" --target-path {TARGET_PATH} --log-path {TARGET_PATH}/logs'
+            f'--target "$DBT_TARGET" --target-path {TARGET_PATH} --log-path {TARGET_PATH}/logs '
+            "--exclude-resource-type unit_test"
         ),
         append_env=True,
     )

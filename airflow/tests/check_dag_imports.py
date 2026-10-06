@@ -43,6 +43,9 @@ def main() -> int:
             problems.append("dbt_gold.export_snapshots must run even when dbt fails (all_done)")
         if "dbt_build" not in export.upstream_task_ids:
             problems.append("dbt_gold.export_snapshots must run after dbt_build")
+        build_cmd = gold.get_task("dbt_build").bash_command
+        if "--exclude-resource-type unit_test" not in build_cmd:
+            problems.append("dbt_gold.dbt_build must exclude unit tests (they run in CI)")
     for problem in problems:
         print("FAIL:", problem)
     if not problems:
