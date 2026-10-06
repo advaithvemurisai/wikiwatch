@@ -9,8 +9,8 @@ every Wikimedia edit, checks it against a watchlist of brand pages, and raises a
 within minutes, with no lost or duplicated edits across restarts.
 
 Redpanda (Kafka API) → Spark Structured Streaming → Apache Iceberg on S3 → dbt on Athena
-→ Next.js on Vercel. Deployed with Terraform, tested end to end in CI, and run in short
-sessions so it costs cents, not dollars.
+→ Next.js on Vercel. Deployed with Terraform from GitHub Actions, tested end to end in CI,
+and run on AWS in short sessions, so it costs cents, not dollars.
 
 ## The problem
 
@@ -45,7 +45,7 @@ Thresholds live in a reference table, so they change without a code deploy: the 
 picks them up from the next micro-batch. Bots never raise R2 or R3. The dashboard shows the
 editor type (registered, unregistered, bot), never an IP address.
 
-## Architecture
+## Data flow
 
 ```mermaid
 flowchart TD
@@ -74,6 +74,95 @@ after each dbt run, and Next.js reads them from S3. Page views cost nothing, bot
 up a bill, and the site keeps working after the compute stack is destroyed, with a
 "Pipeline offline since ..." banner.
 
+## AWS architecture
+
+Everything runs in one region (us-east-1) and is defined in Terraform as three stacks:
+**bootstrap** (the state bucket), **foundation** (always on, costs cents a month) and
+**compute** (created for a session and destroyed after).
+
+```mermaid
+flowchart LR
+  WM[Wikimedia event stream]
+  Users[Visitors]
+
+  subgraph GH[GitHub]
+    GA["GitHub Actions: demo-up, demo-down,<br/>nightly-destroy, terraform-plan, images"]
+    GHCR["Container registry:<br/>Spark, Airflow, producer images"]
+  end
+
+  subgraph VC[Vercel]
+    Site["Next.js dashboard<br/>(static pages, refreshed every 5 min)"]
+  end
+
+  subgraph AWS["AWS us-east-1"]
+    subgraph Foundation["Foundation: always on"]
+      Lake[("S3 lake bucket<br/>Iceberg tables, dashboard/ snapshots,<br/>checkpoints, producer position")]
+      Glue["Glue Data Catalog<br/>ref, bronze, silver, gold, ops"]
+      Athena["Athena workgroup<br/>1 GB cap per query"]
+      SSM["SSM Parameter Store<br/>session secrets"]
+      IAM["IAM: OIDC roles for GitHub and Vercel,<br/>instance role"]
+      Guard["Budget: blocks new launches at $50<br/>Alarm on Athena data scanned"]
+      State[("S3 state bucket<br/>Terraform state")]
+    end
+    subgraph Compute["Compute: one session at a time"]
+      subgraph VPC["VPC, one public subnet, no inbound access"]
+        EC2["EC2 t4g.xlarge (ARM), Docker:<br/>producer, Redpanda, Spark,<br/>Airflow + dbt, Postgres"]
+      end
+      VPCE["S3 gateway endpoint"]
+    end
+  end
+
+  GA -- "OIDC, no stored keys" --> IAM
+  GA -- "Terraform: create, destroy" --> Compute
+  GA --> State
+  GHCR -- "pull at boot" --> EC2
+  WM --> EC2
+  SSM -- "secrets at boot" --> EC2
+  EC2 -- "via endpoint" --> VPCE --> Lake
+  EC2 --> Glue
+  EC2 --> Athena --> Lake
+  Users --> Site
+  Site -- "OIDC, read dashboard/ only" --> Lake
+```
+
+**A session, start to finish**
+
+1. **demo-up** (GitHub Actions, run by hand with a release tag) assumes the deploy role
+   through OIDC and applies the compute stack: a VPC with one public subnet, an internet
+   gateway, an S3 gateway endpoint, a security group with no inbound rules, and one
+   t4g.xlarge. If AWS has no spare capacity, it retries in another zone, then as on-demand.
+2. **The instance boots itself** (about 5 to 10 minutes). It arms a 4-hour self-shutdown
+   first, so a forgotten session always stops. Then it installs Docker, checks out the
+   release tag, reads its secrets from SSM, pulls the release's prebuilt images (or builds
+   them), and starts Redpanda, Spark, Airflow and Postgres.
+3. **A boot check proves the cloud path** before the session is used: both DAGs are
+   scheduled, one run of each succeeds (Athena, Glue, dbt on Athena, the S3 export), and the
+   dbt unit tests pass on Athena. The result is in the boot log.
+4. **You connect with SSM Session Manager** (no SSH, no open port) and start the producer
+   in `resume` mode, so it continues exactly where the last session stopped.
+5. **The pipeline runs itself.** Spark writes Bronze, Silver and Gold every minute;
+   `freshness_monitor` updates the health snapshot every 5 minutes; `dbt_gold` rebuilds
+   Gold and exports the alert and baseline snapshots every 30 minutes.
+6. **demo-down** destroys the compute stack. If nobody runs it, the instance terminates
+   itself after 4 hours and **nightly-destroy** removes the rest. The lake, the catalog and
+   the dashboard stay, and the site shows the last session.
+
+**Why each service**
+
+| Need | Service | Why this one |
+| --- | --- | --- |
+| Stream processing | Spark on one EC2 instance, only during sessions | No always-on cluster to pay for; the same Docker setup runs on the laptop |
+| Kafka | Redpanda in Docker on the instance | Kafka API without a managed cluster; nothing depends on it surviving a session |
+| Lake storage | S3 with Apache Iceberg tables | Cheap, durable, and the tables outlive every session |
+| Table catalog | Glue Data Catalog | Serverless, and Athena reads it directly |
+| SQL for dbt and the export | Athena | Pay per query, partition-pruned, with a 1 GB cap per query |
+| Secrets | SSM Parameter Store | Encrypted, read once at boot, never on a laptop or in the repo |
+| Access from GitHub and Vercel | IAM roles through OIDC | Short-lived credentials; no access keys exist anywhere |
+| Cost control | Budget with an automatic action, Athena alarm | Spending is capped by AWS itself, not by remembering to stop |
+
+There is deliberately no NAT gateway, no Elastic IP, no load balancer, no managed Kafka and
+no EMR: each would cost more per month than all of v1.
+
 ## How it stays correct
 
 - **No lost edits.** The producer saves its stream position to S3 every 30 seconds and
@@ -92,19 +181,24 @@ up a bill, and the site keeps working after the compute stack is destroyed, with
   `EXPLAIN`, that every partitioned table scan is pruned.
 - **A data contract for the dashboard.** Each snapshot carries a `schema_version` and is
   validated against a JSON Schema when Airflow writes it and again when the site reads it.
-  A snapshot the site does not understand shows a friendly message, never a crash.
+  Snapshots export independently, so one failure never blanks the site: the page keeps
+  its last good data and says the latest export failed.
+- **Checked in the cloud at every boot.** The boot check above runs the cloud-only path
+  (Athena, Glue, dbt on Athena, the S3 export) at the start of every session.
 
 ## Cost and security
 
-- Compute exists only during a session: one t4g.xlarge, created by a GitHub Actions
-  workflow and destroyed after. It shuts itself down after 4 hours, and a nightly workflow
-  removes anything left. There is no NAT gateway, no Elastic IP and no managed Kafka.
-- A $50 AWS budget blocks new instance launches automatically, and an alarm watches how
-  much data Athena scans per day. Every Athena query is partition-pruned.
+- Compute exists only during a session, and every exit path ends it: demo-down, the
+  instance's own 4-hour shutdown, and nightly-destroy.
+- A $50 AWS budget blocks new instance launches automatically, with email alerts at $10,
+  $25 and $40, and an alarm fires if Athena scans more than 20 GB in a day.
 - No AWS keys exist anywhere. GitHub Actions and Vercel reach AWS through OIDC roles that
-  trust only this repository and the production site. Secrets live in SSM Parameter
-  Store, and CI logs show only resource names and masked errors.
-- gitleaks runs before every commit and in CI over the full history.
+  trust only this repository and the production site: pull requests get a read-only plan
+  role, `main` gets the deploy role, and Vercel can only read `dashboard/`.
+- The instance has no inbound access at all; it is reached through SSM Session Manager.
+  Its role reads only WikiWatch's own parameters.
+- CI logs show only resource names and masked errors, never Terraform's full output.
+  gitleaks runs before every commit and in CI over the full history.
 
 ## Measured so far
 
@@ -114,8 +208,8 @@ up a bill, and the site keeps working after the compute stack is destroyed, with
 | Resume after killing the producer | 0 events missing; 677 repeats, which Silver deduplicates | live run, checked against an independent recording of the same stream |
 | Time to detect, per-edit alerts | p95 about 61 seconds | scripted edit scenario on the local stack |
 | End-to-end replay test | exact alerts, 0 duplicates, all scans pruned | every pull request, about 5 minutes in CI |
-| Tests | 396 Python tests, 31 web tests, 24 dbt data tests | `make test`, `make web-check`, `make dbt-build` |
-| First AWS session | producer at about 33 events/s; Spark writing Bronze, Silver and Gold to S3 and Glue | 2026-10-05 |
+| AWS sessions | about 600,000 and 1,030,000 edits received; first session: all 599,230 Bronze events unique, so 0 duplicates; dbt on Athena 23 of 23 passing | first two sessions, 2026-10-05 |
+| Tests | 423 Python tests, 40 web tests, 25 dbt unit and data tests | `make test`, `make web-check`, `make dbt-build` |
 
 Still to measure on AWS: p95 time to detect over a full 3-hour session (target under 5
 minutes) and total v1 spend (target under $10).
@@ -134,6 +228,9 @@ make e2e         # the full replay test on a throwaway stack (stop the dev stack
 make web         # the dashboard on fixture snapshots, at http://localhost:3000
 ```
 
+Locally, SeaweedFS stands in for S3, an Iceberg REST catalog for Glue, and Trino for
+Athena; the same code runs against both, and only the env file changes.
+
 To stream live edits, add a User-Agent with your contact details to `.env.local`
 (`WIKIWATCH_USER_AGENT=WikiWatch/0.1 (<your contact URL>)`, as Wikimedia requires), then
 run `make produce MODE=fresh` the first time and `make produce MODE=resume` after any stop.
@@ -147,6 +244,7 @@ run `make produce MODE=fresh` the first time and `make produce MODE=resume` afte
 | `make dbt-build` | dbt models and every dbt test on local Trino |
 | `make load-ref` | Reload the watchlist and alert thresholds into the running stream |
 | `make maintain-lake` | Compact small files and expire old snapshots (start of a session) |
+| `make boot-check` | Both DAGs scheduled, one run of each succeeds, dbt unit tests pass |
 | `make web-s3` / `make web-check` | Dashboard on local S3 snapshots / type check, lint, tests, build |
 
 | Local UI | Address |
@@ -158,22 +256,24 @@ run `make produce MODE=fresh` the first time and `make produce MODE=resume` afte
 
 ## Run it on AWS
 
-A one-time setup from AWS CloudShell creates the state bucket and the persistent
-foundation ([docs/first-apply-checklist.md](docs/first-apply-checklist.md)). After that,
-sessions start and stop from GitHub Actions: **demo-up** with a release tag, **demo-down**
-when done. The Vercel side is in [docs/vercel-setup.md](docs/vercel-setup.md).
+A one-time setup from AWS CloudShell creates the state bucket and the foundation, and
+connects GitHub and Vercel
+([docs/first-apply-checklist.md](docs/first-apply-checklist.md),
+[docs/vercel-setup.md](docs/vercel-setup.md)). After that, every session is two clicks in
+GitHub Actions: **demo-up** with a release tag, **demo-down** when done.
 
 ## Repository layout
 
 | Path | Contents |
 | --- | --- |
 | `producer/` | Wikimedia event stream client: validation, dead-letter queue, fresh and resume modes |
-| `streaming/` | The Spark application: Bronze, Silver, real-time windows, alerts |
-| `dbt/` | Gold models, seeds (watchlist, alert rules) and data tests |
-| `orchestration/`, `airflow/` | Snapshot export and health queries, the two DAGs |
+| `streaming/` | The Spark application: Bronze, Silver, real-time windows, alerts, lake maintenance |
+| `dbt/` | Gold models, seeds (watchlist, alert rules), unit and data tests |
+| `orchestration/`, `airflow/` | Snapshot export and health queries, the two DAGs, the boot check |
 | `schemas/` | Event schema and the dashboard snapshot contract |
 | `web/` | The Next.js dashboard |
 | `infra/` | Terraform: bootstrap, foundation and compute stacks |
+| `.github/workflows/` | CI, Terraform plan, session start and stop, nightly destroy, image publishing |
 | `tests/` | Contract, infrastructure and workflow tests, and the end-to-end replay test |
 
 ## Design documents
