@@ -1,4 +1,6 @@
-import { fmtUtc, isOffline } from "@/lib/format";
+import { isOffline } from "@/lib/format";
+
+import { LocalTime } from "./LocalTime";
 
 /**
  * health.json is rewritten every 5 minutes while a session runs, so its generated_at is
@@ -14,7 +16,10 @@ export function OfflineBanner({ heartbeat, now }: { heartbeat: string | null; no
       <div className="main" style={{ padding: "10px 16px" }}>
         {heartbeat ? (
           <>
-            <strong>Pipeline offline since {fmtUtc(heartbeat)}</strong>, showing last session.
+            <strong>
+              Pipeline offline since <LocalTime iso={heartbeat} />
+            </strong>
+            , showing last session.
           </>
         ) : (
           <strong>Pipeline status unknown, showing the last data available.</strong>

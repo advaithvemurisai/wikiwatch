@@ -21,6 +21,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en">
       <body>
         <Nav />
+        <div className="intro">
+          <p className="main" style={{ margin: "0 auto" }}>
+            WikiWatch streams every Wikipedia edit and alerts a (fictional) communications team
+            when a watched brand page gets a risky edit.{" "}
+            <a href="https://github.com/advaithvemurisai/wikiwatch#readme">How it works</a>
+          </p>
+        </div>
         <OfflineBanner heartbeat={heartbeat} now={renderTime()} />
         <main className="main">{children}</main>
       </body>

@@ -94,3 +94,26 @@ export const EDITOR_LABEL = {
   unregistered: "Unregistered",
   bot: "Bot",
 } as const;
+
+/** Rule names from docs/v1.md, for places that only carry the rule ID (the digest). */
+export const RULE_NAME = {
+  R1: "Page deleted or moved",
+  R2: "Large removal",
+  R3: "Unregistered editor",
+  R4: "Protection change",
+  R5: "Edit burst",
+} as const;
+
+/** "product-comms" -> "Product comms". */
+export function teamLabel(slug: string): string {
+  const words = slug.replace(/[-_]+/g, " ").trim();
+  return words ? words[0]!.toUpperCase() + words.slice(1) : slug;
+}
+
+/** Public URL of a page: enwiki + "Ben & Jerry's" -> en.wikipedia.org/wiki/Ben_%26_Jerry%27s. */
+export function wikipediaUrl(wiki: string, title: string): string | null {
+  const match = /^([a-z]{2,3}(?:-[a-z]+)?)wiki$/.exec(wiki); // language wikis only
+  if (!match) return null;
+  const path = encodeURIComponent(title.replace(/ /g, "_")).replace(/'/g, "%27");
+  return `https://${match[1]}.wikipedia.org/wiki/${path}`;
+}

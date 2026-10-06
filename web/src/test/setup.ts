@@ -1,3 +1,6 @@
+// Local times render in UTC in tests, so expectations do not depend on the machine.
+process.env.TZ = "UTC";
+
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup } from "@testing-library/react";

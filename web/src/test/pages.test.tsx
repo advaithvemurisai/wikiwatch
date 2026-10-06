@@ -36,9 +36,22 @@ describe("pages on fixtures", () => {
   it("Alerts lists the fixture alerts, high severity first", async () => {
     render(await AlertsPage());
     const rows = screen.getAllByRole("row");
-    expect(screen.getByRole("heading", { name: /Open alerts/ })).toHaveTextContent("(5)");
+    expect(screen.getByRole("heading", { name: /Alerts, last 7 days/ })).toHaveTextContent("(5)");
     expect(rows[1]).toHaveTextContent("High");
     expect(screen.getAllByText("Ben & Jerry's").length).toBeGreaterThan(0);
+  });
+
+  it("Alerts leads with a summary and speaks the analyst's language", async () => {
+    render(await AlertsPage());
+    expect(document.querySelector(".summary")).toHaveTextContent(
+      /5 alerts in the last 7 days · High 2 · Medium 1 · Low 2 · newest/,
+    );
+    const [link] = screen.getAllByRole("link", { name: /Ben & Jerry's/ });
+    expect(link).toHaveAttribute("href", "https://en.wikipedia.org/wiki/Ben_%26_Jerry%27s");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getAllByText(/Product comms/).length).toBeGreaterThan(0); // not product-comms
+    expect(screen.getByText(/Large removal ×1, Unregistered editor ×1/)).toBeInTheDocument();
+    expect(screen.queryByText(/R2 ×1/)).not.toBeInTheDocument();
   });
 
   it("Baseline shows its three sections", async () => {
@@ -81,8 +94,13 @@ describe("offline banner", () => {
 
   it("says since when the pipeline is offline after 15 minutes", () => {
     render(<OfflineBanner heartbeat="2026-10-04T20:44:00Z" now={now} />);
+    // Shown in the reader's time zone (UTC in tests), full UTC time on hover.
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Pipeline offline since 4 Oct 2026, 20:44 UTC, showing last session.",
+      /Pipeline offline since Oct 4, 8:44\s?PM UTC, showing last session\./,
+    );
+    expect(screen.getByRole("status").querySelector("time")).toHaveAttribute(
+      "title",
+      "4 Oct 2026, 20:44 UTC",
     );
   });
 
@@ -107,7 +125,7 @@ describe("a failed export", () => {
     render(await AlertsPage());
     expect(screen.getByText("The latest export failed")).toBeInTheDocument();
     expect(screen.getByText(/Showing the last good data, from/)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Open alerts|Alerts, last 7 days/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Alerts, last 7 days/ })).toBeInTheDocument();
   });
 
   it("says nothing on Baseline when only the alerts export failed", async () => {
