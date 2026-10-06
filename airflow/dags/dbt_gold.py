@@ -48,12 +48,13 @@ def dbt_gold():
     )
 
     @task(trigger_rule="all_done")
-    def export_snapshots(logical_date=None):
+    def export_snapshots(logical_date=None, dag_run=None):
         from orchestration.engines import engine_from_env
+        from orchestration.runtime import run_time
         from orchestration.snapshots import export_dashboard
         from orchestration.store import store_from_env
 
-        now = logical_date.astimezone(UTC).replace(tzinfo=None, microsecond=0)
+        now = run_time(logical_date, dag_run.run_after if dag_run else None)
         return export_dashboard(
             engine_from_env(),
             store_from_env(),

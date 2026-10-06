@@ -27,12 +27,13 @@ from airflow.sdk import dag, task
 )
 def freshness_monitor():
     @task
-    def write_health(logical_date=None):
+    def write_health(logical_date=None, dag_run=None):
         from orchestration.engines import engine_from_env
         from orchestration.freshness import bootstrap_from_env, kafka_state, run_freshness
+        from orchestration.runtime import run_time
         from orchestration.store import store_from_env
 
-        now = logical_date.astimezone(UTC).replace(tzinfo=None, microsecond=0)
+        now = run_time(logical_date, dag_run.run_after if dag_run else None)
         health = run_freshness(
             engine_from_env(), store_from_env(), kafka_state(bootstrap_from_env()), now
         )
