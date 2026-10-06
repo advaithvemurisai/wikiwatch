@@ -172,6 +172,7 @@ SeaweedFS 370 MB; all containers together about 4.2 GB; memory pressure normal (
 | `make spark-logs` | Follow the streaming app (it starts with `make up` and waits for topics) |
 | `make replay FILE=...` | Publish a recorded JSONL file through the producer's publish path |
 | `make check-lake` | Trino checks: Silver duplicates, Bronze offset gaps, Bronze-to-Silver completeness |
+| `make maintain-lake` | Compact closed partitions, merge manifests, expire snapshots older than 3 days on the stream's tables (start of a session, before `make produce`) |
 | `make load-ref` | Reload `ref.watchlist` / `ref.alert_rules` from `dbt/seeds/` (applies next micro-batch) |
 | `make alert-scenario` | Replay the scripted edits; exact expected alerts and detection latency |
 | `make dbt-build` / `make dbt-docs` | dbt models and all dbt tests on local Trino / lineage docs in `dbt/target/` |
