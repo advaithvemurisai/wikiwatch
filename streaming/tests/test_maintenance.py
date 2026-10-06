@@ -7,6 +7,9 @@ from datetime import datetime, timedelta
 from streaming.lib.maintenance import STREAM_TABLES, plan, run
 
 NOW = datetime(2026, 10, 6, 12, 0)
+# The Spark test commits in real time, and expire_snapshots compares against those real
+# commit times, so its clock must stay ahead of the wall clock or nothing would expire.
+FUTURE = datetime(2100, 1, 2, 12, 0)
 TABLE = "lake.maint.events"
 
 
@@ -41,15 +44,15 @@ def test_compacts_yesterday_leaves_today_and_expires_snapshots(spark):
     )
     # One commit per insert, like the stream's micro-batches: many small files.
     for i in range(6):
-        spark.sql(f"INSERT INTO {TABLE} VALUES ({i}, TIMESTAMP_NTZ '2026-10-05 0{i}:00:00')")
+        spark.sql(f"INSERT INTO {TABLE} VALUES ({i}, TIMESTAMP_NTZ '2100-01-01 0{i}:00:00')")
     # Today gets enough small files to qualify too, so only the date guard can spare them.
     for i in range(6, 12):
-        spark.sql(f"INSERT INTO {TABLE} VALUES ({i}, TIMESTAMP_NTZ '2026-10-06 0{i - 6}:00:00')")
-    assert files_per_day(spark) == {"2026-10-05": 6, "2026-10-06": 6}
+        spark.sql(f"INSERT INTO {TABLE} VALUES ({i}, TIMESTAMP_NTZ '2100-01-02 0{i - 6}:00:00')")
+    assert files_per_day(spark) == {"2100-01-01": 6, "2100-01-02": 6}
 
-    [summary] = run(spark, NOW, tables={TABLE: "ts"}, retention=timedelta(0), retain_last=1)
+    [summary] = run(spark, FUTURE, tables={TABLE: "ts"}, retention=timedelta(0), retain_last=1)
 
-    assert files_per_day(spark) == {"2026-10-05": 1, "2026-10-06": 6}  # today untouched
+    assert files_per_day(spark) == {"2100-01-01": 1, "2100-01-02": 6}  # today untouched
     assert summary["rewrite_data_files"]["rewritten_data_files_count"] == 6
     assert spark.sql(f"select count(*) from {TABLE}").first()[0] == 12  # no row lost
     assert spark.sql(f"select count(*) from {TABLE}.snapshots").first()[0] == 1
