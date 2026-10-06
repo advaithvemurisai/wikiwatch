@@ -98,10 +98,21 @@ export interface MetaSnapshot {
     tests_ok: number;
     failures: number;
   };
+  /** Row counts; null for a snapshot whose export failed. */
   snapshots: Record<
     "alerts" | "digest" | "edits_per_min" | "bot_share_hourly" | "page_activity",
-    number
+    number | null
   >;
+  /** Status of each export. Absent in meta.json files written before it existed. */
+  exports?: Record<ExportedSnapshot, ExportStatus>;
+}
+
+export type ExportedSnapshot = "alerts" | "baseline";
+
+export interface ExportStatus {
+  status: "ok" | "failed";
+  /** The query that failed, or null when the document itself was invalid. */
+  failed_query: string | null;
 }
 
 export interface Snapshots {

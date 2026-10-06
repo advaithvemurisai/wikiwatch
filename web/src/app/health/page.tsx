@@ -156,6 +156,31 @@ function Lag({ rows }: { rows: HealthSnapshot["lag"] }) {
   );
 }
 
+const EXPORT_LABEL = { alerts: "Alerts", baseline: "Baseline" } as const;
+
+function ExportTile({ exports }: { exports: NonNullable<MetaSnapshot["exports"]> }) {
+  const failed = (Object.keys(exports) as (keyof typeof exports)[]).filter(
+    (name) => exports[name].status === "failed",
+  );
+  return (
+    <div className="tile">
+      <div className="tile-label">Snapshot export</div>
+      <div className="tile-value" style={{ fontSize: "1.25rem" }}>
+        {failed.length === 0 ? (
+          <Status level="good">All exported</Status>
+        ) : (
+          <Status level="critical">{failed.length} failed</Status>
+        )}
+      </div>
+      <div className="tile-detail">
+        {failed.length === 0
+          ? "alerts and baseline"
+          : `${failed.map((name) => EXPORT_LABEL[name]).join(" and ")}: the site shows the last good copy`}
+      </div>
+    </div>
+  );
+}
+
 function DbtRun({ meta, now }: { meta: MetaSnapshot; now: number }) {
   const { dbt } = meta;
   const status =
@@ -189,6 +214,7 @@ function DbtRun({ meta, now }: { meta: MetaSnapshot; now: number }) {
         <div className="tile-label">Failures</div>
         <div className="tile-value">{fmtInt(dbt.failures)}</div>
       </div>
+      {meta.exports && <ExportTile exports={meta.exports} />}
     </div>
   );
 }
@@ -245,8 +271,8 @@ export default async function HealthPage() {
       )}
 
       <section className="section" aria-labelledby="dbt">
-        <h2 id="dbt">Last dbt run</h2>
-        <p className="section-note">Gold models and every dbt test, built every 30 minutes.</p>
+        <h2 id="dbt">Last dbt run and export</h2>
+        <p className="section-note">Gold models and every dbt test, built every 30 minutes, then exported to the site.</p>
         {meta.ok ? (
           <DbtRun meta={meta.data} now={now} />
         ) : (

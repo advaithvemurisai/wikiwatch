@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { BotShareChart } from "@/components/BotShareChart";
 import { EditsPerMinuteChart } from "@/components/EditsPerMinuteChart";
+import { ExportNotice } from "@/components/ExportNotice";
 import { PageActivityChart } from "@/components/PageActivityChart";
 import { SnapshotError } from "@/components/SnapshotError";
 import { fmtUtc } from "@/lib/format";
@@ -12,7 +13,7 @@ export const metadata: Metadata = { title: "Baseline" };
 export const revalidate = 300;
 
 export default async function BaselinePage() {
-  const snapshot = await loadSnapshot("baseline");
+  const [snapshot, meta] = await Promise.all([loadSnapshot("baseline"), loadSnapshot("meta")]);
   return (
     <>
       <div className="page-header">
@@ -22,6 +23,11 @@ export default async function BaselinePage() {
           Wikipedia.
         </p>
       </div>
+      <ExportNotice
+        meta={meta}
+        which="baseline"
+        shownAt={snapshot.ok ? snapshot.data.generated_at : null}
+      />
       {!snapshot.ok ? (
         <SnapshotError what="Baseline" problem={snapshot.problem} />
       ) : (

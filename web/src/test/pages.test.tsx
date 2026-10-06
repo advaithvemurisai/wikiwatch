@@ -91,3 +91,48 @@ describe("offline banner", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Pipeline status unknown");
   });
 });
+
+describe("a failed export", () => {
+  function metaWithFailedExports(...failed: ("alerts" | "baseline")[]): string {
+    const meta = JSON.parse(fixtureText("meta"));
+    meta.exports = {
+      alerts: { status: failed.includes("alerts") ? "failed" : "ok", failed_query: failed.includes("alerts") ? "alerts" : null },
+      baseline: { status: failed.includes("baseline") ? "failed" : "ok", failed_query: null },
+    };
+    return JSON.stringify(meta);
+  }
+
+  it("keeps the last good alerts and says the latest export failed", async () => {
+    overrides.meta = metaWithFailedExports("alerts");
+    render(await AlertsPage());
+    expect(screen.getByText("The latest export failed")).toBeInTheDocument();
+    expect(screen.getByText(/Showing the last good data, from/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Open alerts|Alerts, last 7 days/ })).toBeInTheDocument();
+  });
+
+  it("says nothing on Baseline when only the alerts export failed", async () => {
+    overrides.meta = metaWithFailedExports("alerts");
+    render(await BaselinePage());
+    expect(screen.queryByText("The latest export failed")).not.toBeInTheDocument();
+  });
+
+  it("explains a failed export with no earlier copy", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    overrides.meta = metaWithFailedExports("baseline");
+    overrides.baseline = "not json";
+    render(await BaselinePage());
+    expect(screen.getByText(/no earlier data to show yet/)).toBeInTheDocument();
+  });
+
+  it("shows the export status on Pipeline health", async () => {
+    overrides.meta = metaWithFailedExports("alerts", "baseline");
+    render(await HealthPage());
+    expect(screen.getByText("2 failed")).toBeInTheDocument();
+  });
+
+  it("shows all exported when both succeeded", async () => {
+    overrides.meta = metaWithFailedExports();
+    render(await HealthPage());
+    expect(screen.getByText("All exported")).toBeInTheDocument();
+  });
+});
