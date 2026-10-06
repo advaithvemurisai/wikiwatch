@@ -34,3 +34,9 @@ def test_latest_state_is_the_newest_run():
     ]
     assert boot_check.latest_state(rows) == "success"
     assert boot_check.latest_state([]) == "none"
+
+
+def test_dbt_summary_reads_the_done_line():
+    out = "04:31:26  Done. PASS=5 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=5\n"
+    assert boot_check.dbt_summary(out) == "PASS=5 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=5"
+    assert boot_check.dbt_summary("crashed") == "no summary (dbt did not finish)"

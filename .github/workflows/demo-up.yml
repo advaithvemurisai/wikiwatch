@@ -40,7 +40,7 @@ jobs:
   up:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       id-token: write
@@ -88,20 +88,16 @@ jobs:
           terraform show -json tfplan > "$RUNNER_TEMP/plan.json"
           python3 "$GITHUB_WORKSPACE/scripts/tf_plan_summary.py" "$RUNNER_TEMP/plan.json"
           rm -f "$RUNNER_TEMP/plan.json"
-      - name: Apply
+      - name: Apply (another zone, then on-demand, if AWS has no capacity)
         working-directory: infra/compute
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_VAR_state_bucket: ${{ secrets.TF_STATE_BUCKET }}
         run: |
-          # Terraform's output stays out of the log (ARNs); on failure only the masked
-          # Error: lines are printed. The INT timeout lets Terraform stop cleanly, save
-          # its state and release the lock before the job's own time limit.
-          if ! timeout --signal=INT --kill-after=3m 15m \
-              terraform apply -input=false -no-color tfplan > "$RUNNER_TEMP/apply.log" 2>&1; then
-            python3 "$GITHUB_WORKSPACE/scripts/tf_errors.py" "$RUNNER_TEMP/apply.log"
-            rm -f "$RUNNER_TEMP/apply.log" tfplan
-            echo "Apply failed. Anything already created is in the state: run demo-down to remove it."
-            exit 1
-          fi
-          rm -f "$RUNNER_TEMP/apply.log" tfplan
+          # Terraform's output stays out of the log (ARNs); failures print only masked
+          # Error: lines. Each attempt is time-limited so Terraform always saves its
+          # state and releases the lock (scripts/apply_session.py).
+          python3 "$GITHUB_WORKSPACE/scripts/apply_session.py"
           echo "Session instance: $(terraform output -raw instance_id)"
           echo "Boot takes about 10 minutes. Connect with SSM Session Manager (no SSH)."
       # Set only after a successful apply, so a failed apply never shields leftovers.

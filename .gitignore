@@ -42,3 +42,6 @@ logs/
 # Scratch output (reference recordings for the resume check)
 tmp/
 dbt/.user.yml
+
+# Written on EC2 by the boot script (prebuilt image tag)
+.image-tag.mk

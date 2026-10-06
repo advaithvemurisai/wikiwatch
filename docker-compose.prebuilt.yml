@@ -1,0 +1,14 @@
+# Prebuilt session images from the release's `images` workflow (GitHub container
+# registry). The Makefile adds this file only when IMAGE_TAG is set: on EC2 the boot
+# script sets it after pulling all three images for the session's tag; otherwise
+# everything is built locally from docker/ as before.
+services:
+  spark:
+    build: !reset null
+    image: ghcr.io/advaithvemurisai/wikiwatch-spark:${IMAGE_TAG:?set IMAGE_TAG}
+  airflow:
+    build: !reset null
+    image: ghcr.io/advaithvemurisai/wikiwatch-airflow:${IMAGE_TAG:?set IMAGE_TAG}
+  producer:
+    build: !reset null
+    image: ghcr.io/advaithvemurisai/wikiwatch-producer:${IMAGE_TAG:?set IMAGE_TAG}

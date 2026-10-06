@@ -132,13 +132,18 @@ they grant access: only this repository's workflows can assume the roles.
 
 - [ ] Open a pull request that touches `infra/`. In `terraform-plan`, the plan job prints
       "No changes" for bootstrap and foundation and the session resources for compute.
-- [ ] Tag a release on main and push it, then run **demo-up** with that tag. After about
-      10 minutes, from CloudShell:
+- [ ] Tag a release on main and push it. The **images** workflow publishes the session
+      images for that tag (about 10 to 20 minutes). The first time only: in GitHub, open
+      your profile's **Packages**, and for each of `wikiwatch-spark`, `wikiwatch-airflow`
+      and `wikiwatch-producer` go to **Package settings → Change visibility → Public**.
+      Until then, sessions build the images locally (slower, otherwise the same).
+- [ ] Run **demo-up** with that tag. After about 10 minutes, from CloudShell:
       `aws ssm start-session --target <instance id from the demo-up log>`, then
-      `sudo tail -n 50 /var/log/wikiwatch-boot.log` ends with "boot finished".
-- [ ] If demo-up fails with `InsufficientInstanceCapacity` (no spare t4g.xlarge in that
-      zone), run **demo-down** to remove the network it created, then run demo-up again
-      with another `availability_zone` (for example `us-east-1b`) or `market: on-demand`.
+      `sudo tail -n 50 /var/log/wikiwatch-boot.log` shows "BOOT CHECK PASSED" and ends
+      with "boot finished".
+- [ ] If AWS has no spare t4g.xlarge (`InsufficientInstanceCapacity`), demo-up retries by
+      itself in another zone and then as on-demand; the job summary says which launched.
+      Only if all attempts fail: run **demo-down**, then try again later.
 - [ ] On the instance, before the producer (from the second session on):
       `cd /opt/wikiwatch && sudo make maintain-lake ENV_FILE=.env.aws` compacts the small
       files earlier sessions left and expires snapshots older than 3 days.
