@@ -209,7 +209,7 @@ no EMR: each would cost more per month than all of v1.
 | Time to detect, per-edit alerts | p95 about 61 seconds | scripted edit scenario on the local stack |
 | End-to-end replay test | exact alerts, 0 duplicates, all scans pruned | every pull request, about 5 minutes in CI |
 | AWS sessions | about 600,000 and 1,030,000 edits received; first session: all 599,230 Bronze events unique, so 0 duplicates; dbt on Athena 23 of 23 passing | first two sessions, 2026-10-05 |
-| Tests | 423 Python tests, 40 web tests, 25 dbt unit and data tests | `make test`, `make web-check`, `make dbt-build` |
+| Tests | 424 Python tests, 40 web tests, 25 dbt unit and data tests | `make test`, `make web-check`, `make dbt-build` |
 
 Still to measure on AWS: p95 time to detect over a full 3-hour session (target under 5
 minutes) and total v1 spend (target under $10).
@@ -259,8 +259,33 @@ run `make produce MODE=fresh` the first time and `make produce MODE=resume` afte
 A one-time setup from AWS CloudShell creates the state bucket and the foundation, and
 connects GitHub and Vercel
 ([docs/first-apply-checklist.md](docs/first-apply-checklist.md),
-[docs/vercel-setup.md](docs/vercel-setup.md)). After that, every session is two clicks in
-GitHub Actions: **demo-up** with a release tag, **demo-down** when done.
+[docs/vercel-setup.md](docs/vercel-setup.md)). After that, a session is three steps:
+
+1. **Start it.** Run **demo-up** in GitHub Actions with a release tag (market `spot` or
+   `on-demand`; set a zone only to retry after a capacity shortage). The instance boots
+   itself in about 7 to 10 minutes; the boot log ends with `BOOT CHECK PASSED`.
+2. **Start the producer.** From CloudShell, open a session on the instance (its ID is in the
+   demo-up log), then run the producer from the repo directory. The AWS env file is not the
+   default, so pass it every time:
+
+   ```bash
+   aws ssm start-session --target <instance-id> --region us-east-1
+   cd /opt/wikiwatch
+   sudo tail -n 40 /var/log/wikiwatch-boot.log                 # expect "boot check passed"
+   sudo make produce ENV_FILE=.env.aws MODE=resume             # first ever session: MODE=fresh
+   sudo make producer-logs ENV_FILE=.env.aws                   # Ctrl+C leaves the view only
+   ```
+
+   `resume` replays everything Wikimedia published since the last session ended. After a
+   gap of a day or two, expect about 40 minutes of catch-up at 2,000+ events/s while Spark
+   runs behind (`Current batch is falling behind` warnings are normal). The producer is live
+   when `events_per_sec` drops to about 30 and `last_event_dt` matches `ts`.
+3. **Stop it.** Run **demo-down** when done. If you forget, the instance stops itself after
+   4 hours and nightly-destroy removes the rest.
+
+To check health from CloudShell, read `dashboard/v1/health.json` in the lake bucket: its
+`generated_at` should be under 5 minutes old and `lag` near zero. The instance has no AWS
+CLI, so run `aws` commands from CloudShell, not inside the session.
 
 ## Repository layout
 
