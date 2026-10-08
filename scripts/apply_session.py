@@ -49,7 +49,8 @@ def offered_zones(region: str) -> list[str]:
 
 
 def terraform(args: list[str], log: Path, env: dict, timeout: str | None = None) -> int:
-    cmd = ["terraform", *args, "-input=false", "-no-color"]
+    # Flags go before the plan file: Terraform stops parsing options at the first argument.
+    cmd = ["terraform", args[0], "-input=false", "-no-color", *args[1:]]
     if timeout:  # INT first: Terraform stops cleanly, saves state, releases the lock
         cmd = ["timeout", "--signal=INT", "--kill-after=3m", timeout, *cmd]
     with log.open("w") as handle:
