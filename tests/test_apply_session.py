@@ -80,3 +80,15 @@ def test_gives_up_after_the_last_attempt(monkeypatch, tmp_path):
     code, calls = run_main(monkeypatch, tmp_path, ["capacity"] * 3)
     assert code == 1 and len(calls) == 3
     assert not (tmp_path / "apply.log").exists(), "Terraform's log never outlives the step"
+
+
+def test_terraform_flags_come_before_the_plan_file(monkeypatch, tmp_path):
+    seen = []
+
+    def run(cmd, **_):
+        seen.append(cmd)
+        return type("Done", (), {"returncode": 0})()
+
+    monkeypatch.setattr(apply_session.subprocess, "run", run)
+    apply_session.terraform(["apply", "tfplan"], tmp_path / "log", {}, timeout="12m")
+    assert seen[0][-4:] == ["apply", "-input=false", "-no-color", "tfplan"]
