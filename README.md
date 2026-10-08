@@ -4,13 +4,19 @@
 
 **Live dashboard: [wikiwatch-kappa.vercel.app](https://wikiwatch-kappa.vercel.app)**
 
-Communications teams find out about risky Wikipedia edits hours late. WikiWatch streams
-every Wikimedia edit, checks it against a watchlist of brand pages, and raises an alert
-within minutes, with no lost or duplicated edits across restarts.
+**In short:** WikiWatch watches key brand and product pages on Wikipedia, flags risky edits
+within minutes, and shows the context a communications team needs: what changed, what kind
+of account changed it, and whether the activity is normal for that page.
+
+It streams every Wikimedia edit, checks it against a watchlist of brand pages, stores the
+data in a cloud lakehouse, and publishes small, schema-checked snapshots to a dashboard.
+The dashboard keeps working, showing the last session, after the compute stack is destroyed.
+No edits are lost across restarts; the occasional repeated event is removed in the Silver
+table.
 
 Redpanda (Kafka API) → Spark Structured Streaming → Apache Iceberg on S3 → dbt on Athena
 → Next.js on Vercel. Deployed with Terraform from GitHub Actions, tested end to end in CI,
-and run on AWS in short sessions, so it costs cents, not dollars.
+and run on AWS in short sessions to keep the cost low.
 
 ## The problem
 
