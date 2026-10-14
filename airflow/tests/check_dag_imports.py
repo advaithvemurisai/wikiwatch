@@ -11,7 +11,7 @@ import sys
 from airflow.dag_processing.dagbag import DagBag  # Airflow 3.3 location
 
 EXPECTED = {
-    "dbt_gold": ("*/30 * * * *", {"dbt_build", "export_snapshots"}),
+    "dbt_gold": ("*/30 * * * *", {"dbt_build", "export_snapshots", "dbt_passed"}),
     "freshness_monitor": ("*/5 * * * *", {"write_health"}),
 }
 
@@ -43,6 +43,14 @@ def main() -> int:
             problems.append("dbt_gold.export_snapshots must run even when dbt fails (all_done)")
         if "dbt_build" not in export.upstream_task_ids:
             problems.append("dbt_gold.export_snapshots must run after dbt_build")
+        # The run's state comes from its last tasks; a dbt failure must reach one of them.
+        passed = gold.get_task("dbt_passed")
+        if str(passed.trigger_rule) not in ("all_success", "TriggerRule.ALL_SUCCESS"):
+            problems.append("dbt_gold.dbt_passed must use all_success")
+        if not {"dbt_build", "export_snapshots"} <= passed.upstream_task_ids:
+            problems.append("dbt_gold.dbt_passed must follow dbt_build and export_snapshots")
+        if passed.downstream_task_ids:
+            problems.append("dbt_gold.dbt_passed must be the last task")
         build_cmd = gold.get_task("dbt_build").bash_command
         if "--exclude-resource-type unit_test" not in build_cmd:
             problems.append("dbt_gold.dbt_build must exclude unit tests (they run in CI)")
