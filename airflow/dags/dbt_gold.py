@@ -3,7 +3,10 @@
 1. dbt_build: `dbt build` (models + tests) on the target for this environment
    (local = Trino, aws = Athena). Incremental and partition-pruned (ADR 0008).
 2. export_snapshots: alerts.json, baseline.json and meta.json to dashboard/v1/. Runs even
-   when dbt fails, so meta.json reports the failure; the DAG run still shows as failed.
+   when dbt fails, so meta.json reports the failure.
+3. dbt_passed: fails the run when dbt failed. Airflow sets a run's state from its last
+   tasks only, so without it a dbt failure followed by a good export shows as success,
+   and the boot check (which reads the run state) would pass.
 
 Idempotent: dbt merges, and the export overwrites the same three keys from queries bounded
 by the run's logical time, so a re-run of the same interval writes the same snapshots.
@@ -16,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.sdk import dag, task
 
 DBT = os.environ.get("DBT_BIN", "dbt")
@@ -61,7 +65,10 @@ def dbt_gold():
             run_results=Path(TARGET_PATH) / "run_results.json",
         )
 
-    build >> export_snapshots()
+    # all_success: upstream_failed (so the run fails) when dbt_build or the export failed.
+    passed = EmptyOperator(task_id="dbt_passed", retries=0)
+    build >> export_snapshots() >> passed
+    build >> passed
 
 
 dbt_gold()
