@@ -137,7 +137,7 @@ flowchart LR
    through OIDC and applies the compute stack: a VPC with one public subnet, an internet
    gateway, an S3 gateway endpoint, a security group with no inbound rules, and one
    t4g.xlarge. If AWS has no spare capacity, it retries in another zone, then as on-demand.
-2. **The instance boots itself** (about 5 to 10 minutes). It arms a 4-hour self-shutdown
+2. **The instance boots itself** (about 10 to 15 minutes). It arms a 4-hour self-shutdown
    first, so a forgotten session always stops. Then it installs Docker, checks out the
    release tag, reads its secrets from SSM, pulls the release's prebuilt images (or builds
    them), and starts Redpanda, Spark, Airflow and Postgres.
@@ -269,15 +269,16 @@ connects GitHub and Vercel
 
 1. **Start it.** Run **demo-up** in GitHub Actions with a release tag (market `spot` or
    `on-demand`; set a zone only to retry after a capacity shortage). The instance boots
-   itself in about 7 to 10 minutes; the boot log ends with `BOOT CHECK PASSED`.
+   itself in about 10 to 15 minutes; the boot log ends with `BOOT CHECK PASSED`.
 2. **Start the producer.** From CloudShell, open a session on the instance (its ID is in the
-   demo-up log), then run the producer from the repo directory. The AWS env file is not the
-   default, so pass it every time:
+   demo-up log), compact the lake, then run the producer from the repo directory. The AWS
+   env file is not the default, so pass it every time:
 
    ```bash
    aws ssm start-session --target <instance-id> --region us-east-1
    cd /opt/wikiwatch
    sudo tail -n 40 /var/log/wikiwatch-boot.log                 # expect "boot check passed"
+   sudo make maintain-lake ENV_FILE=.env.aws                   # every session after the first
    sudo make produce ENV_FILE=.env.aws MODE=resume             # first ever session: MODE=fresh
    sudo make producer-logs ENV_FILE=.env.aws                   # Ctrl+C leaves the view only
    ```
