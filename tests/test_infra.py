@@ -247,6 +247,18 @@ def test_cloud_memory_limits_reach_the_env_file():
         assert "=${" + name + "}" in USER_DATA
 
 
+def test_dbt_tables_live_outside_the_expiring_athena_results():
+    # Without s3_data_dir, dbt-athena writes table data under the staging dir, whose
+    # lifecycle rule deleted the Gold tables' files after 7 days.
+    s3 = stack_text("foundation")
+    prefix = re.search(r'athena_results_prefix\s*=\s*"([^"]+)"', s3).group(1)
+    assert "ATHENA_S3_STAGING_DIR=s3://${lake_bucket}/" + prefix in USER_DATA
+    profile = (ROOT / "dbt/profiles.yml").read_text()
+    data_dir = re.search(r's3_data_dir:\s*"([^"]+)"', profile).group(1)
+    assert data_dir == "s3://{{ env_var('WAREHOUSE_BUCKET') }}/dbt/"
+    assert prefix.strip("/") not in data_dir
+
+
 def test_repo_tag_is_validated_before_it_reaches_the_boot_script():
     text = stack_text("compute")
     assert 'can(regex("^v[0-9]+' in text

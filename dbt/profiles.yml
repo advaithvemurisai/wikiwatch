@@ -16,6 +16,9 @@ wikiwatch:
     aws:
       type: athena
       s3_staging_dir: "{{ env_var('ATHENA_S3_STAGING_DIR') }}"
+      # Table data, kept apart from the staging dir: its query results expire after 7
+      # days, and without this dbt-athena puts the tables' data files there too.
+      s3_data_dir: "s3://{{ env_var('WAREHOUSE_BUCKET') }}/dbt/"
       region_name: "{{ env_var('AWS_REGION', 'us-east-1') }}"
       database: awsdatacatalog
       schema: gold
