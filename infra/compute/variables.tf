@@ -61,6 +61,12 @@ variable "spark_mem_limit" {
   default     = "6144m"
 }
 
+variable "airflow_mem_limit" {
+  description = "Airflow container limit on the 16 GB instance (the laptop default is 1792m). One container runs the API server, scheduler and dbt; at 1792m a dbt build got the API server OOM-killed."
+  type        = string
+  default     = "4096m"
+}
+
 variable "spark_driver_memory" {
   description = "Spark driver heap on the instance (the laptop default is 1536m)."
   type        = string

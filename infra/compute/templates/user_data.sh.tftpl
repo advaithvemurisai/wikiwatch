@@ -50,6 +50,7 @@ S3_SECRET_KEY=unused-on-aws
 STREAM_TRIGGER=1 minute
 SPARK_MEM_LIMIT=${spark_mem_limit}
 SPARK_DRIVER_MEMORY=${spark_driver_memory}
+AIRFLOW_MEM_LIMIT=${airflow_mem_limit}
 DBT_TARGET=aws
 ATHENA_WORKGROUP=${athena_workgroup}
 ATHENA_S3_STAGING_DIR=s3://${lake_bucket}/athena-results/

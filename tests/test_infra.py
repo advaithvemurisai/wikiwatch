@@ -238,6 +238,15 @@ def test_user_data_checks_out_a_tag_and_verifies_dockers_key():
     assert "make produce" not in USER_DATA.split("# 5.")[1].split("\n", 3)[-1]
 
 
+def test_cloud_memory_limits_reach_the_env_file():
+    # At the laptop's 1792m, a dbt build got Airflow's API server OOM-killed on EC2.
+    variables = stack_text("compute")
+    assert re.search(r'variable "airflow_mem_limit" \{[^}]*default\s*=\s*"4096m"', variables)
+    for name in ("spark_mem_limit", "spark_driver_memory", "airflow_mem_limit"):
+        assert f"{name} = var.{name}" in re.sub(r" +", " ", variables)
+        assert "=${" + name + "}" in USER_DATA
+
+
 def test_repo_tag_is_validated_before_it_reaches_the_boot_script():
     text = stack_text("compute")
     assert 'can(regex("^v[0-9]+' in text

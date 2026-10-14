@@ -68,6 +68,7 @@ resource "aws_instance" "session" {
     shutdown_minutes    = local.shutdown_minutes
     spark_mem_limit     = var.spark_mem_limit
     spark_driver_memory = var.spark_driver_memory
+    airflow_mem_limit   = var.airflow_mem_limit
   })
   user_data_replace_on_change = true
 
