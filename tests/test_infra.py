@@ -178,7 +178,12 @@ def test_instance_guardrails():
     assert 'http_tokens   = "required"' in instance
     assert "encrypted             = true" in instance
     assert "delete_on_termination = true" in instance
-    assert 'instance_initiated_shutdown_behavior = "terminate"' in instance
+    # AWS rejects the attribute on spot; one-time spot terminates on shutdown by itself.
+    assert (
+        'instance_initiated_shutdown_behavior = var.market == "spot" ? null : "terminate"'
+        in instance
+    )
+    assert 'spot_instance_type             = "one-time"' in instance
     assert 'cpu_credits = "standard"' in instance
     assert "monitoring             = false" in instance
     assert "associate_public_ip_address" not in instance

@@ -22,8 +22,9 @@ resource "aws_instance" "session" {
   monitoring             = false
 
   # The self-shutdown terminates the instance, so a forgotten session leaves no running
-  # instance and no disk behind.
-  instance_initiated_shutdown_behavior = "terminate"
+  # instance and no disk behind. AWS rejects this attribute on spot instances; a one-time
+  # spot instance cannot be stopped, so its shutdown terminates it anyway.
+  instance_initiated_shutdown_behavior = var.market == "spot" ? null : "terminate"
 
   dynamic "instance_market_options" {
     for_each = var.market == "spot" ? [1] : []
