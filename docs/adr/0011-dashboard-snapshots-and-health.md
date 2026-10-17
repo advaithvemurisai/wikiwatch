@@ -86,3 +86,12 @@ affected page and shows the export status on Pipeline health.
 The `meta.json` change is additive: `exports` is optional and the row counts may be null.
 Every existing `meta.json` still validates, and the site deploys from `main` before any
 session writes the new form, so `schema_version` stays 1.
+
+`alerts.json` gained three optional fields the same way: `revision_old` and
+`revision_new` (the site links each alert to its Wikipedia diff, or to the page history
+when they are null: log events, R5 bursts and alerts recorded before the fields existed)
+and `arrived_late` (the edit reached the pipeline more than 10 minutes after it happened,
+so its detection time measures a gap between sessions). Spark adds the two revision
+columns to `gold.watched_page_alerts` at startup, before it waits for the producer, so
+the boot check's export can already read them. The site deploys first and reads
+snapshots with or without the fields.

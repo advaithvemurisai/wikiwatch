@@ -87,12 +87,15 @@ def main() -> None:
     spark = build_spark("wikiwatch-stream")
     bucket = lake_bucket()
 
+    # Tables first, before waiting for the producer: the boot check exports snapshots
+    # long before anyone starts the producer, and the export reads columns that
+    # create_tables adds to tables made by earlier releases.
+    create_tables(spark)
+    loaded = load_ref_if_empty(spark, SEEDS_DIR)
     admin = kafka_admin(spark, bootstrap)
     wait_for_topics(admin)
     session_id = session_id_from_cluster_id(admin.describeCluster().clusterId().get())
     admin.close()
-    create_tables(spark)
-    loaded = load_ref_if_empty(spark, SEEDS_DIR)
     log({"msg": "startup", "session_id": session_id, "ref_loaded": loaded is not None})
 
     buffer = progress.ProgressBuffer()

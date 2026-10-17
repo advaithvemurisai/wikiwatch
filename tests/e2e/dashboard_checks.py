@@ -10,6 +10,7 @@ Runs the same functions the Airflow tasks call, against Trino and SeaweedFS:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import time
@@ -79,7 +80,38 @@ def check_pruning(engine: TrinoEngine, now: datetime, session_id: str) -> tuple[
     return verified, failures
 
 
-def run_dashboard_checks(env_file: Path, expected: dict, write_fixtures: bool) -> list[str]:
+def alert_link_failures(alerts: list[dict], events: list[dict]) -> list[str]:
+    """Check each alert's diff-link fields against the event that raised it.
+
+    R1 to R4 alerts carry the edit's revisions (null for log events, which have none), and
+    every one is a late arrival here: the replayed events were recorded long before. R5
+    spans many edits, so all three fields are null.
+    """
+    by_alert_id = {}
+    for event in events:
+        meta_id = event.get("meta", {}).get("id")
+        for rule in ("R1", "R2", "R3", "R4"):
+            key = hashlib.sha256(f"{rule}:{meta_id}".encode()).hexdigest()
+            by_alert_id[key] = event.get("revision") or {}
+    failures = []
+    for alert in alerts:
+        got = (alert["revision_old"], alert["revision_new"], alert["arrived_late"])
+        if alert["rule_id"] == "R5":
+            want = (None, None, None)
+        elif alert["alert_id"] not in by_alert_id:
+            failures.append(f"alert {alert['alert_id']} matches no replayed event")
+            continue
+        else:
+            revision = by_alert_id[alert["alert_id"]]
+            want = (revision.get("old"), revision.get("new"), True)
+        if got != want:
+            failures.append(f"alert {alert['alert_id']} link fields {got}, expected {want}")
+    return failures
+
+
+def run_dashboard_checks(
+    env_file: Path, expected: dict, write_fixtures: bool, events: list[dict]
+) -> list[str]:
     creds = _env_file_values(env_file, "S3_ACCESS_KEY", "S3_SECRET_KEY")
     os.environ["AWS_ACCESS_KEY_ID"] = creds["S3_ACCESS_KEY"]
     os.environ["AWS_SECRET_ACCESS_KEY"] = creds["S3_SECRET_KEY"]
@@ -127,6 +159,7 @@ def run_dashboard_checks(env_file: Path, expected: dict, write_fixtures: bool) -
         failures.append(
             f"alerts.json differs: missing {sorted(want - got)}, extra {sorted(got - want)}"
         )
+    failures.extend(alert_link_failures(alerts["alerts"], events))
 
     health = json.loads(lake.get_text("dashboard/v1/health.json"))
     funnel = health["funnel"]

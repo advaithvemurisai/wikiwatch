@@ -42,6 +42,8 @@ ALERT_COLUMNS = [
     "byte_delta",
     "length_old",
     "length_new",
+    "revision_old",
+    "revision_new",
 ]
 
 

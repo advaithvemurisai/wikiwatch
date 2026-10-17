@@ -75,7 +75,9 @@ ALERTS = Query(
     select * from (
         select a.alert_id, a.rule_id, r.rule_name, a.severity, a.wiki, a.title, a.category,
                a.owner_team, a.edit_type, a.log_action, a.editor_type, a.byte_delta,
-               cast(null as bigint) as edits_in_window, a.event_ts, a.detected_at
+               cast(null as bigint) as edits_in_window, a.event_ts, a.detected_at,
+               a.revision_old, a.revision_new,
+               a.ingested_at >= a.event_ts + interval '10' minute as arrived_late
         from gold.watched_page_alerts as a
         inner join ref.alert_rules as r on a.rule_id = r.rule_id
         where a.event_ts >= timestamp '{since_7d}'
@@ -83,7 +85,8 @@ ALERTS = Query(
         select b.alert_id, b.rule_id, r.rule_name, b.severity, b.wiki, b.title, b.category,
                b.owner_team, cast(null as varchar), cast(null as varchar),
                cast(null as varchar), cast(null as bigint), b.edits, b.window_start,
-               b.detected_at
+               b.detected_at, cast(null as bigint), cast(null as bigint),
+               cast(null as boolean)
         from gold.burst_alerts as b
         inner join ref.alert_rules as r on b.rule_id = r.rule_id
         where b.window_start >= timestamp '{since_7d}'

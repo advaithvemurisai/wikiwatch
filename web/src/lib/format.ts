@@ -110,10 +110,61 @@ export function teamLabel(slug: string): string {
   return words ? words[0]!.toUpperCase() + words.slice(1) : slug;
 }
 
+/** "enwiki" -> "en.wikipedia.org"; null for anything that is not a language Wikipedia. */
+function wikipediaHost(wiki: string): string | null {
+  const match = /^([a-z]{2,3}(?:-[a-z]+)?)wiki$/.exec(wiki); // language wikis only
+  return match ? `${match[1]}.wikipedia.org` : null;
+}
+
+function titlePath(title: string): string {
+  return encodeURIComponent(title.replace(/ /g, "_")).replace(/'/g, "%27");
+}
+
 /** Public URL of a page: enwiki + "Ben & Jerry's" -> en.wikipedia.org/wiki/Ben_%26_Jerry%27s. */
 export function wikipediaUrl(wiki: string, title: string): string | null {
-  const match = /^([a-z]{2,3}(?:-[a-z]+)?)wiki$/.exec(wiki); // language wikis only
-  if (!match) return null;
-  const path = encodeURIComponent(title.replace(/ /g, "_")).replace(/'/g, "%27");
-  return `https://${match[1]}.wikipedia.org/wiki/${path}`;
+  const host = wikipediaHost(wiki);
+  return host ? `https://${host}/wiki/${titlePath(title)}` : null;
+}
+
+function isRevision(value: number | null | undefined): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+/** 2026-10-11T20:35:00Z -> "20261011203500", the page-history offset format. */
+function historyOffset(ms: number): string {
+  return new Date(ms).toISOString().replace(/[-:T]/g, "").slice(0, 14);
+}
+
+export interface ChangeLink {
+  href: string;
+  label: "View change" | "Page history";
+}
+
+/**
+ * Where to see the change behind an alert. With its revisions known, Wikipedia's diff of
+ * that edit (a new page has no old revision, so it diffs against nothing). Otherwise the
+ * page history ending just after the edit: log events (R1, R4) have no revision, an R5
+ * burst spans several edits, and alerts from before revisions were exported have none.
+ * Its windows divide an hour (the ref loader checks), so an hour after the window start
+ * covers the whole burst.
+ */
+export function changeLink(alert: {
+  wiki: string;
+  title: string;
+  rule_id: string;
+  event_ts: string;
+  revision_old?: number | null;
+  revision_new?: number | null;
+}): ChangeLink | null {
+  const host = wikipediaHost(alert.wiki);
+  if (!host) return null;
+  if (isRevision(alert.revision_new)) {
+    const oldid = isRevision(alert.revision_old) ? `&oldid=${alert.revision_old}` : "";
+    return { href: `https://${host}/w/index.php?diff=${alert.revision_new}${oldid}`, label: "View change" };
+  }
+  const start = new Date(alert.event_ts).getTime();
+  if (Number.isNaN(start)) return null;
+  const after = alert.rule_id === "R5" ? 60 * 60 * 1000 : 60 * 1000;
+  const query = `title=${titlePath(alert.title)}&action=history&offset=${historyOffset(start + after)}`;
+  return { href: `https://${host}/w/index.php?${query}`, label: "Page history" };
 }

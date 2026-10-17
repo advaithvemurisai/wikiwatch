@@ -106,8 +106,17 @@ _DDL = {
         editor_type STRING,
         byte_delta BIGINT,
         length_old BIGINT,
-        length_new BIGINT
+        length_new BIGINT,
+        revision_old BIGINT COMMENT 'null for log events (R1, R4) and new pages',
+        revision_new BIGINT COMMENT 'null for log events (R1, R4); the diff link uses both'
     """,
+}
+
+# Columns added after a table was first created, in the order they were added. Tables
+# created earlier (they live on S3 across sessions) get them through ALTER TABLE at
+# startup; Iceberg adds a column in metadata only, and older rows read it as null.
+_ADDED_COLUMNS = {
+    GOLD_ALERTS: (("revision_old", "BIGINT"), ("revision_new", "BIGINT")),
 }
 
 _PARTITIONING = {
@@ -146,3 +155,14 @@ def create_tables(spark, tables: tuple[str, ...] = ALL_TABLES):
         spark.sql(f"CREATE NAMESPACE IF NOT EXISTS {namespace}")
     for table in tables:
         spark.sql(create_table_sql(table))
+        add_missing_columns(spark, table)
+
+
+def add_missing_columns(spark, table: str) -> list[str]:
+    """Add any of the table's later columns it lacks (idempotent); return the added names."""
+    existing = {field.name for field in spark.table(table).schema}
+    missing = [(name, kind) for name, kind in _ADDED_COLUMNS.get(table, ()) if name not in existing]
+    if missing:
+        columns = ", ".join(f"{name} {kind}" for name, kind in missing)
+        spark.sql(f"ALTER TABLE {table} ADD COLUMNS ({columns})")
+    return [name for name, _ in missing]

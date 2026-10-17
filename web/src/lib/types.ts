@@ -24,6 +24,10 @@ export interface Alert {
   edits_in_window: number | null;
   event_ts: Timestamp;
   detected_at: Timestamp;
+  // Optional: snapshots written before these fields existed lack them (additive change).
+  revision_old?: number | null;
+  revision_new?: number | null;
+  arrived_late?: boolean | null;
 }
 
 export interface DigestRow {

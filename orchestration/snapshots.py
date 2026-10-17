@@ -101,6 +101,9 @@ def build_alerts(now: datetime, alert_rows: list[dict], digest_rows: list[dict])
             "edits_in_window": r["edits_in_window"],
             "event_ts": iso(r["event_ts"]),
             "detected_at": iso(r["detected_at"]),
+            "revision_old": r["revision_old"],
+            "revision_new": r["revision_new"],
+            "arrived_late": r["arrived_late"],
         }
         for r in alert_rows[:500]
     ]

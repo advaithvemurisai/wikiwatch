@@ -279,7 +279,9 @@ def main() -> int:
         log("dashboard export, health and partition pruning (Task 8)")
         from tests.e2e.dashboard_checks import run_dashboard_checks
 
-        failures.extend(run_dashboard_checks(ENV_FILE, expected, args.write_web_fixtures))
+        failures.extend(
+            run_dashboard_checks(ENV_FILE, expected, args.write_web_fixtures, phase1 + phase2)
+        )
         lake = run(PY, "scripts/check_lake.py", check=False)
         if lake.returncode:
             failures.append("check_lake.py failed (Bronze gaps or Silver completeness)")
