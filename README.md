@@ -192,6 +192,25 @@ no EMR: each would cost more per month than all of v1.
 - **Checked in the cloud at every boot.** The boot check above runs the cloud-only path
   (Athena, Glue, dbt on Athena, the S3 export) at the start of every session.
 
+## What the cloud caught
+
+Local Trino stands in for Athena, so a few differences only show up on AWS. Each one
+is now fixed and has a test, and
+[ADR 0008](docs/adr/0008-dbt-on-trino-and-athena.md) records them.
+
+- **Gold tables lost to a lifecycle rule.** dbt-athena put Gold's data files under the
+  Athena query-results prefix, which expires after 7 days. A week later the boot check
+  failed with `ICEBERG_MISSING_METADATA`. The fix: Gold now lives under its own `dbt/`
+  prefix, and a one-time full refresh rebuilt all four models from Silver in 34 seconds,
+  with 13 of 13 dbt tests passing. Bronze and Silver were never affected.
+- **Unit tests that failed only on Athena.** dbt builds an empty temp table before each unit
+  test. dbt-athena made it a Hive table, and Hive cannot store `timestamp(6)`, so every R5
+  unit test errored on Athena while passing on Trino. A small macro override
+  ([`dbt/macros/resolve_table_type.sql`](dbt/macros/resolve_table_type.sql)) makes those
+  temp tables Iceberg, and a test keeps it in line with the pinned dbt-athena.
+- **A failed export never blanked the site.** During the Gold failure the dashboard kept
+  its last good data and showed "The latest export failed", as designed.
+
 ## Cost and security
 
 - Compute exists only during a session, and every exit path ends it: demo-down, the
@@ -215,7 +234,9 @@ no EMR: each would cost more per month than all of v1.
 | Time to detect, per-edit alerts | p95 about 61 seconds | scripted edit scenario on the local stack |
 | End-to-end replay test | exact alerts, 0 duplicates, all scans pruned | every pull request, about 5 minutes in CI |
 | AWS sessions | about 600,000 and 1,030,000 edits received; first session: all 599,230 Bronze events unique, so 0 duplicates; dbt on Athena 23 of 23 passing | first two sessions, 2026-10-05 |
-| Tests | 424 Python tests, 40 web tests, 25 dbt unit and data tests | `make test`, `make web-check`, `make dbt-build` |
+| Resume after a 3-day gap | replayed at about 2,800 events/s (about 100 times real time), 0 rejected events | live session, 2026-10-17 |
+| Rebuild of Gold from Silver | 4 models, 7 days of history, 34 seconds, 13 of 13 tests passing | live session, 2026-10-17 |
+| Tests | 433 Python tests, 40 web tests, 25 dbt unit and data tests | `make test`, `make web-check`, `make dbt-build` |
 
 Still to measure on AWS: p95 time to detect over a full 3-hour session (target under 5
 minutes) and total v1 spend (target under $10).
@@ -287,6 +308,10 @@ connects GitHub and Vercel
    gap of a day or two, expect about 40 minutes of catch-up at 2,000+ events/s while Spark
    runs behind (`Current batch is falling behind` warnings are normal). The producer is live
    when `events_per_sec` drops to about 30 and `last_event_dt` matches `ts`.
+
+   Paste these commands one at a time: SSM sessions can drop the lines after the first
+   in a multi-line paste. To check the producer without following its log, run
+   `sudo docker logs --tail 5 wikiwatch-producer-1`.
 3. **Stop it.** Run **demo-down** when done. If you forget, the instance stops itself after
    4 hours and nightly-destroy removes the rest.
 
