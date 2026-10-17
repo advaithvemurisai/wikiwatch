@@ -31,6 +31,9 @@ def alert_row(i=0, **overrides):
         "edits_in_window": None,
         "event_ts": datetime(2026, 10, 4, 11, 0, 5),
         "detected_at": datetime(2026, 10, 4, 11, 1, 2),
+        "revision_old": 1001,
+        "revision_new": 1002,
+        "arrived_late": False,
     }
     row.update(overrides)
     return row
@@ -80,6 +83,24 @@ def test_alerts_snapshot_is_valid_and_has_no_user_names():
     s.validate("alerts", doc)
     assert doc["alerts"][0]["event_ts"] == "2026-10-04T11:00:05Z"
     assert "user" not in json.dumps(doc)  # editor type only, never a name
+
+
+def test_alerts_carry_revisions_and_late_arrival():
+    burst = alert_row(1, rule_id="R5", revision_old=None, revision_new=None, arrived_late=None)
+    late = alert_row(2, arrived_late=True)
+    doc = s.build_alerts(NOW, [alert_row(), burst, late], [])
+    s.validate("alerts", doc)
+    picked = [(a["revision_old"], a["revision_new"], a["arrived_late"]) for a in doc["alerts"]]
+    assert picked == [(1001, 1002, False), (None, None, None), (1001, 1002, True)]
+
+
+def test_snapshots_from_before_the_revision_fields_still_validate():
+    """The site must keep reading snapshots written by earlier releases (additive change)."""
+    doc = s.build_alerts(NOW, [alert_row()], [])
+    for alert in doc["alerts"]:
+        for field in ("revision_old", "revision_new", "arrived_late"):
+            del alert[field]
+    s.validate("alerts", doc)
 
 
 def test_alerts_are_capped_at_500():

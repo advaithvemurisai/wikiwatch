@@ -128,6 +128,27 @@
             "type": "string",
             "format": "date-time",
             "pattern": "Z$"
+          },
+          "revision_old": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Revision before the edit; null for log events, new pages, R5 and alerts recorded before this field existed."
+          },
+          "revision_new": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Revision the edit created; with revision_old it links to the Wikipedia diff. Null for log events, R5 and older alerts."
+          },
+          "arrived_late": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "True when the edit reached the pipeline more than 10 minutes after it happened (a gap between sessions), so detected_at - event_ts measures the gap, not the pipeline. Null for R5 and older alerts."
           }
         }
       }

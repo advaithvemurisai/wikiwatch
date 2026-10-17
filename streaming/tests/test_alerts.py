@@ -8,7 +8,13 @@ import pytest
 
 from streaming.lib.alerts import process_batch
 from streaming.lib.ref import load_ref
-from streaming.lib.tables import GOLD_ALERTS, REF_ALERT_RULES, REF_WATCHLIST, create_tables
+from streaming.lib.tables import (
+    GOLD_ALERTS,
+    REF_ALERT_RULES,
+    REF_WATCHLIST,
+    add_missing_columns,
+    create_tables,
+)
 from streaming.lib.transform import to_silver
 from streaming.tests.test_transform import event, kafka_rows
 
@@ -168,3 +174,29 @@ def test_alerts_carry_watchlist_context_and_timings(lake):
         "delete",
     )
     assert row.detected_at is not None and row.event_ts is not None
+
+
+def test_edit_alerts_carry_revisions_for_the_diff_link(lake):
+    run(
+        lake,
+        edit("a", user=TEMP_ACCOUNT, revision={"old": 101, "new": 102}),
+        log_event("b", "protect", "protect"),
+    )
+    rows = {r.rule_id: (r.revision_old, r.revision_new) for r in lake.table(GOLD_ALERTS).collect()}
+    assert rows == {"R3": (101, 102), "R4": (None, None)}  # log events have no revision
+
+
+def test_tables_created_before_the_revision_columns_get_them_at_startup(lake):
+    lake.sql(f"ALTER TABLE {GOLD_ALERTS} DROP COLUMNS revision_old, revision_new")
+    lake.sql(
+        f"INSERT INTO {GOLD_ALERTS} (alert_id, rule_id, severity, meta_id, event_ts) "
+        "VALUES ('old', 'R3', 'low', 'm-old', timestamp_ntz'2026-10-01 00:00:00')"
+    )
+    assert add_missing_columns(lake, GOLD_ALERTS) == ["revision_old", "revision_new"]
+    assert add_missing_columns(lake, GOLD_ALERTS) == []  # idempotent
+    old = lake.table(GOLD_ALERTS).where("alert_id = 'old'").collect()[0]
+    assert (old.revision_old, old.revision_new) == (None, None)
+    # New alerts write the columns through the same insert-only MERGE as before.
+    run(lake, edit("a", user=TEMP_ACCOUNT, revision={"old": 7, "new": 8}))
+    new = lake.table(GOLD_ALERTS).where("meta_id = 'a'").collect()[0]
+    assert (new.revision_old, new.revision_new) == (7, 8)

@@ -145,6 +145,7 @@ def main() -> int:
             "Ben & Jerry's",
             user=temp_editor,
             length={"old": 12_000, "new": 3_000},
+            revision={"old": 1_000_001, "new": 1_000_002},  # the dashboard's diff link
         ),
         # Page 3: Marmite -> R5: five edits inside one 10-minute window ...
         *[
