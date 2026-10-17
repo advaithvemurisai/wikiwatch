@@ -43,6 +43,19 @@ must be partition-pruned (cost rule), and R5's window definition was ambiguous i
 
 - `dbt build` on local Trino is a faithful check of the Athena SQL, but Athena itself is
   only parse-checked until AWS exists (Task 7). Differences found then go into this ADR.
+- Differences found on AWS:
+  - **Where dbt-athena keeps table data.** Without `s3_data_dir`, dbt-athena writes table
+    data under the query-results prefix, which expires after 7 days; Gold tables broke
+    once their files expired. `profiles.yml` now sets `s3_data_dir` to `dbt/` in the lake
+    bucket. Tables created before that need one `dbt build --full-refresh` of Gold,
+    rebuilt from Silver.
+  - **Unit-test temp tables.** Before a unit test, dbt creates an empty table from the
+    model to read its column types. That node has none of the model's config, so
+    dbt-athena made it a Hive table, which cannot hold `timestamp(6)`, and every R5 unit
+    test errored on Athena only. `macros/resolve_table_type.sql` overrides dbt-athena's
+    macro to use Iceberg for unit tests; `tests/test_dbt_macros.py` keeps the copy in
+    step with the pinned dbt-athena. The boot check runs the unit tests on Athena, which
+    is how this was found.
 - `make test` runs the dbt unit tests when Trino is up and prints a loud SKIPPED warning
   otherwise; `make dbt-build` runs everything; CI always has Trino.
 - sqlfluff lints the models with lint-time stand-ins for the run-time macros
