@@ -33,7 +33,7 @@ companies stand in as competitors. No biographies of living people are watched.
 
 | User | Question | Page |
 | --- | --- | --- |
-| Communications analyst | Did a watched page just get a risky edit? | Alerts |
+| Communications analyst | Did a watched page just get a risky edit, and what changed? | Alerts, with a link to each change on Wikipedia |
 | Communications lead | Is this a spike on our page, or a busy day on Wikipedia? | Baseline |
 | Data engineer | Can the alerts be trusted right now? | Pipeline health |
 
@@ -236,7 +236,7 @@ is now fixed and has a test, and
 | AWS sessions | about 600,000 and 1,030,000 edits received; first session: all 599,230 Bronze events unique, so 0 duplicates; dbt on Athena 23 of 23 passing | first two sessions, 2026-10-05 |
 | Resume after a 3-day gap | replayed at about 2,800 events/s (about 100 times real time), 0 rejected events | live session, 2026-10-17 |
 | Rebuild of Gold from Silver | 4 models, 7 days of history, 34 seconds, 13 of 13 tests passing | live session, 2026-10-17 |
-| Tests | 433 Python tests, 40 web tests, 25 dbt unit and data tests | `make test`, `make web-check`, `make dbt-build` |
+| Tests | 437 Python tests, 47 web tests, 25 dbt unit and data tests | `make test`, `make web-check`, `make dbt-build` |
 
 Still to measure on AWS: p95 time to detect over a full 3-hour session (target under 5
 minutes) and total v1 spend (target under $10).
