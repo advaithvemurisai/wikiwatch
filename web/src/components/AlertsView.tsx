@@ -6,6 +6,7 @@ import { LocalTime } from "@/components/LocalTime";
 import { SeverityBadge } from "@/components/Status";
 import {
   CATEGORY_LABEL,
+  changeLink,
   EDITOR_LABEL,
   fmtBytes,
   fmtDay,
@@ -28,6 +29,19 @@ const RULE_COUNT = {
 } as const satisfies Record<RuleId, keyof DigestRow>;
 
 type Filter = { rule: RuleId | ""; category: Category | ""; page: string };
+
+function ChangeLinkCell({ alert }: { alert: Alert }) {
+  const link = changeLink(alert);
+  if (!link) return null;
+  return (
+    <div className="small">
+      <a href={link.href} target="_blank" rel="noopener noreferrer">
+        {link.label}
+        <span className="sr-only"> (opens Wikipedia in a new tab)</span>
+      </a>
+    </div>
+  );
+}
 
 function PageLink({ wiki, title }: { wiki: string; title: string }) {
   const url = wikipediaUrl(wiki, title);
@@ -74,9 +88,15 @@ function ruleDetail(alert: Alert): string | null {
   return null;
 }
 
-function detectionDelay(alert: Alert): string {
+/**
+ * How long detection took. An edit that reached the pipeline more than 10 minutes late
+ * (a gap between sessions, caught up on resume) is labelled as such: its delay measures
+ * the gap, not the pipeline.
+ */
+export function detectionNote(alert: Alert): string {
   const seconds = (new Date(alert.detected_at).getTime() - new Date(alert.event_ts).getTime()) / 1000;
-  return fmtSeconds(Math.max(0, seconds));
+  const delay = fmtSeconds(Math.max(0, seconds));
+  return alert.arrived_late ? `received after a pipeline gap (${delay})` : `detected in ${delay}`;
 }
 
 export function AlertsView({ snapshot, now }: { snapshot: AlertsSnapshot; now: number }) {
@@ -211,13 +231,14 @@ export function AlertsView({ snapshot, now }: { snapshot: AlertsSnapshot; now: n
                           {a.rule_id} · {a.rule_name}
                         </div>
                         {detail && <div className="small muted">{detail}</div>}
+                        <ChangeLinkCell alert={a} />
                       </td>
                       <td className="num">{a.byte_delta === null ? "—" : fmtBytes(a.byte_delta)}</td>
                       <td>{a.editor_type ? EDITOR_LABEL[a.editor_type] : "—"}</td>
                       <td>
                         <div className="nowrap">{timeAgo(a.event_ts, now)}</div>
                         <LocalTime iso={a.event_ts} className="small muted nowrap" />
-                        <div className="small muted nowrap">detected in {detectionDelay(a)}</div>
+                        <div className="small muted nowrap">{detectionNote(a)}</div>
                       </td>
                     </tr>
                   );

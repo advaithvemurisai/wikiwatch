@@ -54,6 +54,32 @@ describe("pages on fixtures", () => {
     expect(screen.queryByText(/R2 ×1/)).not.toBeInTheDocument();
   });
 
+  it("Alerts links each change on Wikipedia and labels catch-up after a gap", async () => {
+    render(await AlertsPage());
+    const diffs = screen.getAllByRole("link", { name: /View change/ });
+    expect(diffs[0]).toHaveAttribute("href", "https://en.wikipedia.org/w/index.php?diff=1000002&oldid=1000001");
+    expect(diffs[0]).toHaveAttribute("rel", "noopener noreferrer");
+    // Log events (R1, R4) and the R5 burst have no single revision: page history instead.
+    expect(screen.getAllByRole("link", { name: /Page history/ })).toHaveLength(3);
+    // The fixture replays events recorded hours earlier: every per-edit alert arrived late.
+    expect(screen.getAllByText(/received after a pipeline gap/)).toHaveLength(4);
+    expect(screen.getAllByText(/^detected in /)).toHaveLength(1); // R5 has no arrival time
+  });
+
+  it("Alerts still renders snapshots written before the link fields existed", async () => {
+    const doc = JSON.parse(fixtureText("alerts"));
+    for (const alert of doc.alerts) {
+      delete alert.revision_old;
+      delete alert.revision_new;
+      delete alert.arrived_late;
+    }
+    overrides.alerts = JSON.stringify(doc);
+    render(await AlertsPage());
+    expect(screen.queryAllByRole("link", { name: /View change/ })).toHaveLength(0);
+    expect(screen.getAllByRole("link", { name: /Page history/ })).toHaveLength(5);
+    expect(screen.getAllByText(/^detected in /)).toHaveLength(5);
+  });
+
   it("Baseline shows its three sections", async () => {
     render(await BaselinePage());
     expect(screen.getByRole("heading", { name: "Platform edits per minute" })).toBeInTheDocument();
